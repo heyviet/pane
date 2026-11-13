@@ -250,12 +250,13 @@ body.is-live { --reserve: 60px; }
 .is-landscape[data-turn="cw"] .key-voldown { bottom: auto; top: calc(var(--h) * -0.006); left: 61%; }
 .is-landscape[data-turn="cw"] .key-side    { top: auto; bottom: calc(var(--h) * -0.006); left: 66%; }
 
-/* Zoom and exit controls, shown only in full screen. */
+/* Zoom and exit controls, shown only in full screen, in the same bottom-left
+   spot as the View toolbar. */
 .fs-tools {
   display: none;
   position: absolute;
-  top: 16px;
-  right: 16px;
+  left: var(--edge);
+  bottom: var(--edge);
   z-index: 5;
   align-items: center;
   gap: 6px;
