@@ -510,6 +510,8 @@ const GESTURES = {
 };
 
 // Screenshot: save the mirrored picture to this PC (not to the iPhone's Photos).
+// Pane's server shows the Windows save dialog, so it knows where the file went
+// and can open it or show it in Explorer afterwards.
 function screenshotName() {
   const d = new Date();
   const p = (n) => String(n).padStart(2, "0");
@@ -533,29 +535,28 @@ async function screenshot() {
     notify(error.message, "warn");
     return;
   }
-  const name = screenshotName();
-  if (window.showSaveFilePicker) {
-    try {
-      const handle = await window.showSaveFilePicker({
-        suggestedName: name,
-        startIn: "pictures",
-        types: [{ description: "PNG image", accept: { "image/png": [".png"] } }],
-      });
-      const writable = await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      notify(`Screenshot saved as ${handle.name}.`);
-    } catch (error) {
-      if (error.name !== "AbortError") notify(`Could not save the screenshot: ${error.message}`, "warn");
-    }
-    return;
+  const button = document.querySelector("#screenshot");
+  button.disabled = true;
+  try {
+    const response = await fetch("/api/screenshot", {
+      method: "POST",
+      headers: { "Content-Type": "image/png", "X-File-Name": encodeURIComponent(screenshotName()) },
+      body: blob,
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Could not save the screenshot.");
+    if (result.cancelled) return;
+    const reveal = (action) => postJson("/api/screenshot/open", { action, path: result.path })
+      .catch((error) => notify(error.message, "warn"));
+    window.PaneToast.show(`Screenshot saved as ${result.name}.`, "", "screen", [
+      { label: "Open", run: () => reveal("open") },
+      { label: "Show in folder", run: () => reveal("folder") },
+    ]);
+  } catch (error) {
+    notify(error.message, "warn");
+  } finally {
+    button.disabled = false;
   }
-  // Browsers without a save dialog API: hand it to the download prompt.
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = name;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(link.href), 10000);
 }
 
 // A swipe-up injected over USB is too slow for iOS to treat as the Home

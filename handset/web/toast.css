@@ -4,7 +4,7 @@
   bottom: max(20px, env(safe-area-inset-bottom));
   z-index: 10000;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px;
+  grid-template-columns: minmax(0, 1fr) auto 36px;
   align-items: center;
   gap: 12px;
   width: min(380px, calc(100vw - 40px));
@@ -21,6 +21,17 @@
 #pane-toast[hidden] { display: none !important; }
 #pane-toast-text { overflow-wrap: anywhere; }
 #pane-toast[data-tone="warn"] { color: #ffb85c; }
+#pane-toast-actions { display: flex; gap: 6px; }
+#pane-toast-actions:empty { display: none; }
+#pane-toast .pane-toast-action {
+  width: auto;
+  padding: 0 10px;
+  border: 1px solid #3a3a44;
+  color: #7ec8ff;
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+}
 #pane-toast button {
   display: grid;
   place-items: center;
