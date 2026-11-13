@@ -1,1 +1,4 @@
-pymobiledevice3>=11.28
+pymobiledevice3==11.54.0
+qrcode>=8.2
+Pillow>=10
+pillow-heif>=1.0

@@ -1,0 +1,48 @@
+.file-transfer { min-width: 0; }
+.control-pane:has(.file-transfer) { position: static; }
+.file-transfer { scroll-margin-top: 96px; }
+.files-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.files-heading h2 { margin-bottom: 0; }
+#files-connection { color: var(--muted); font-size: 12px; }
+#files-connection.connected { color: var(--ok); }
+.files-intro { color: var(--muted); font-size: 14px; line-height: 1.55; margin: 12px 0; }
+.files-help { display: block; color: var(--muted); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.files-label { display: block; color: var(--muted); font-size: 12px; margin: 14px 0 6px; }
+.files-manual-address { font-size: 16px; overflow-wrap: anywhere; user-select: all; }
+.files-code { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: 0.12em; margin: 6px 0 20px; user-select: all; }
+#files-pair-form { margin: 24px 0; }
+#files-pair-code { font-size: 20px; letter-spacing: 0.1em; margin-bottom: 12px; }
+.file-transfer input[type="text"], .file-transfer select { box-sizing: border-box; width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; font-size: 13px; }
+#files-copy { margin-top: 8px; }
+.files-qr { display: block; background: white; padding: 8px; margin: 16px auto; border-radius: 8px; }
+.files-drop { margin-top: 20px; padding: 20px 14px; border: 1px dashed var(--line); border-radius: 12px; text-align: center; }
+.files-drop.dragging { border-color: var(--accent); background: var(--surface-hover); }
+.files-drop p { margin: 0 0 12px; font-size: 14px; }
+.files-drop .files-help { margin-top: 12px; }
+.files-subtitle { font-size: 14px; font-weight: 600; margin: 24px 0 10px; }
+.files-list { list-style: none; padding: 0; margin: 0; max-height: 280px; overflow: auto; }
+.files-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); padding: 12px 0; font-size: 13px; }
+.files-list .files-empty { color: var(--muted); border: 0; }
+.files-list .files-name { min-width: 0; overflow-wrap: anywhere; }
+.files-list small { display: block; margin-top: 4px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.files-list a { flex-shrink: 0; color: var(--accent); text-underline-offset: 4px; padding: 8px 0; }
+.files-message { font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.files-message:empty { display: none; }
+.files-message.error { color: var(--warn); }
+#files-progress-wrap { margin-top: 16px; font-size: 13px; overflow-wrap: anywhere; }
+#files-progress { width: 100%; height: 8px; accent-color: var(--accent); margin: 12px 0; display: block; }
+.file-transfer :focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.file-transfer [hidden] { display: none !important; }
+.files-phone { color-scheme: dark; --bg: #050508; --surface-hover: #19191e; --text: #f5f5f7; --muted: #a2a2ac; --accent: #409cff; --ok: #32d74b; --warn: #ff9f0a; --line: #34343b; margin: 0; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+.files-phone main { max-width: 560px; padding: 24px 24px 40px; margin: auto; }
+.files-phone-header { display: flex; align-items: center; gap: 12px; font-size: 21px; font-weight: 600; }
+.files-phone-header #files-connection { margin-left: auto; font-weight: 400; }
+.files-phone h1 { font-size: clamp(28px, 7vw, 36px); line-height: 1.2; letter-spacing: -0.025em; margin: 36px 0 12px; }
+.files-phone .files-drop { padding: 24px 16px; }
+.files-phone .files-drop h2 { font-size: 18px; margin: 0 0 12px; }
+.files-phone button { border: 1px solid var(--line); border-radius: 9px; background: var(--surface-hover); color: var(--text); padding: 12px 16px; min-height: 44px; font: inherit; font-size: 15px; cursor: pointer; }
+.files-phone #files-choose { background: var(--accent); color: #050508; font-weight: 600; border-color: var(--accent); }
+.file-transfer button:disabled { opacity: 0.5; cursor: wait; }
+.files-phone button:hover { filter: brightness(1.15); }
+.files-phone ::selection { background: #1b4a7f; color: white; }
+.files-phone-footer { margin-top: 36px; border-top: 1px solid var(--line); padding-top: 20px; }
