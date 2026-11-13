@@ -28,18 +28,25 @@
     clearTimeout(timer);
     if (toast) toast.hidden = true;
   }
-  // actions: optional [{label, run}] buttons, e.g. Open / Show in folder.
+  // actions: optional [{label, icon, run}] buttons. With an icon (trusted SVG
+  // markup from Pane's own code), the label becomes the tooltip.
   function show(text, tone = "", category = "general", actions = []) {
     if (typeof text !== "string" || !text) return;
     clearTimeout(timer);
     currentCategory = category;
     const notification = element();
     notification.querySelector("#pane-toast-text").textContent = text;
-    notification.querySelector("#pane-toast-actions").replaceChildren(...(Array.isArray(actions) ? actions : []).map(({label, run}) => {
+    notification.querySelector("#pane-toast-actions").replaceChildren(...(Array.isArray(actions) ? actions : []).map(({label, icon, run}) => {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "pane-toast-action";
-      button.textContent = label;
+      if (icon) {
+        button.innerHTML = icon;
+        button.title = label;
+        button.setAttribute("aria-label", label);
+      } else {
+        button.textContent = label;
+      }
       button.addEventListener("click", () => run());
       return button;
     }));

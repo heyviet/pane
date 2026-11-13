@@ -526,6 +526,22 @@ async function captureScreen() {
   return blob;
 }
 
+const ICON = (paths) => `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+const ICONS = {
+  open: ICON('<path d="M9 2.5h4.5V7M13.5 2.5 7.5 8.5M12 9.5v3a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3"/>'),
+  folder: ICON('<path d="M1.5 4.5a1 1 0 0 1 1-1h3.5l1.5 1.5h6a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z"/>'),
+  copy: ICON('<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/>'),
+};
+
+async function copyImage(blob, actions) {
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+    window.PaneToast.show("Screenshot copied to the clipboard.", "", "screen", actions);
+  } catch (error) {
+    notify(`Could not copy the screenshot: ${error.message}`, "warn");
+  }
+}
+
 async function screenshot() {
   let blob;
   try {
@@ -557,10 +573,12 @@ async function screenshot() {
     if (result.cancelled) return;
     const reveal = (action) => postJson("/api/screenshot/open", { action, path: result.path })
       .catch((error) => notify(error.message, "warn"));
-    window.PaneToast.show(`Screenshot saved as ${result.name}.`, "", "screen", [
-      { label: "Open", run: () => reveal("open") },
-      { label: "Show in folder", run: () => reveal("folder") },
-    ]);
+    const actions = [
+      { label: "Open", icon: ICONS.open, run: () => reveal("open") },
+      { label: "Show in folder", icon: ICONS.folder, run: () => reveal("folder") },
+      { label: "Copy to clipboard", icon: ICONS.copy, run: () => copyImage(blob, actions) },
+    ];
+    window.PaneToast.show(`Screenshot saved as ${result.name}.`, "", "screen", actions);
   } catch (error) {
     notify(error.message, "warn");
   } finally {
@@ -634,6 +652,9 @@ window.addEventListener("message", (event) => {
   const data = event.data;
   if (data?.type !== "pane-view") return;
   if (typeof data.landscape === "boolean") setOrientation(data.landscape, data.turn);
+  if (typeof data.ratio === "number" && data.ratio > 0.2 && data.ratio <= 1) {
+    phoneShell.style.setProperty("--sr", data.ratio.toFixed(4));
+  }
 });
 
 window.handsetKeyboardOn = true;

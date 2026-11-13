@@ -46,10 +46,10 @@ class ScreenshotTests(unittest.TestCase):
             screenshots.open_file(str(other))
         with self.assertRaises(ValueError):
             screenshots.show_in_folder(str(other))
-        saved = screenshots.save(PNG, "shot.png", ask=self.ask)["path"]
+        saved = screenshots.save(PNG, "iPhone screenshot 2026-11-13 at 13.46.22.png", ask=self.ask)["path"]
         with patch("subprocess.Popen") as popen:
             screenshots.show_in_folder(saved)
-        self.assertEqual(popen.call_args.args[0], ["explorer", f"/select,{Path(saved).resolve()}"])
+        self.assertEqual(popen.call_args.args[0], f'explorer /select,"{Path(saved).resolve()}"')
 
     def test_moved_screenshot_is_reported(self):
         saved = screenshots.save(PNG, "shot.png", ask=self.ask)["path"]

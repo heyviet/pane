@@ -22,9 +22,11 @@
 #pane-toast-text { overflow-wrap: anywhere; }
 #pane-toast[data-tone="warn"] { color: #ffb85c; }
 #pane-toast-actions { display: flex; gap: 6px; }
+#pane-toast .pane-toast-action:has(svg) { padding: 0; }
 #pane-toast-actions:empty { display: none; }
 #pane-toast .pane-toast-action {
   width: auto;
+  min-width: 36px;
   padding: 0 10px;
   border: 1px solid #3a3a44;
   color: #7ec8ff;

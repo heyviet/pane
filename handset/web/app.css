@@ -113,23 +113,28 @@ body.is-live { --reserve: 60px; }
 .pill-bad { color: var(--bad); border-color: rgba(255, 69, 58, 0.35); }
 .pill-muted { color: var(--muted); }
 
-/* iPhone 13-class body: 71.5 x 146.7 mm. Every dimension is a share of the
-   device's long side (--h) so the frame keeps its proportions at any window
-   size, in portrait and in landscape. */
+/* Every dimension is a share of the device's long side (--h) so the frame
+   keeps its proportions at any window size, in portrait and in landscape.
+   The rim and bezel take 0.022 of --h on each side (0.044 in all), so the
+   body's short side is 0.956 * --sr * --h + 0.044 * --h, where --sr is the
+   screen's short/long ratio. Pane sets --sr from the live picture so the
+   mirror fills the screen edge to edge; the default is an iPhone 13-class
+   body (71.5 x 146.7 mm). */
 .iphone {
+  --sr: 0.4638;
+  --body: calc(0.956 * var(--sr) + 0.044);
   --fit: clamp(380px, calc(100dvh - 92px - var(--reserve, 0px)), 980px);
   --h: calc(var(--fit) * var(--zoom, 1));
   position: relative;
   height: var(--h);
-  aspect-ratio: 71.5 / 146.7;
+  width: calc(var(--h) * var(--body));
   flex: none;
 }
 
 .iphone.is-landscape {
-  --fit: clamp(380px, min(calc(100vw - 72px), calc((100dvh - 92px - var(--reserve, 0px)) * 146.7 / 71.5)), 1600px);
+  --fit: clamp(380px, min(calc(100vw - 72px), calc((100dvh - 92px - var(--reserve, 0px)) / var(--body))), 1600px);
   width: var(--h);
-  height: auto;
-  aspect-ratio: 146.7 / 71.5;
+  height: calc(var(--h) * var(--body));
 }
 
 .iphone.live .placeholder { display: none; }

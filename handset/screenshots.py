@@ -116,5 +116,9 @@ def open_file(path: str) -> None:
 
 
 def show_in_folder(path: str) -> None:
-    # Explorer opens the folder with the screenshot selected.
-    subprocess.Popen(["explorer", f"/select,{_known(path)}"])
+    # Explorer opens the folder with the screenshot selected. It parses its own
+    # command line: the path must be quoted after "/select," and the comma must
+    # not be inside the quotes. A list argument would quote the whole
+    # "/select,C:\My Pictures\shot.png" token when the path has spaces, and Explorer then
+    # falls back to opening Documents.
+    subprocess.Popen(f'explorer /select,"{_known(path)}"')

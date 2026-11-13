@@ -31,10 +31,12 @@ function postView() {
   // Before the first frame the canvas has its default 300x150 size: no shape yet.
   const landscape = pictureSized ? canvas.width > canvas.height : undefined;
   const turn = ((visualRotation % 360) + 360) % 360 === 90 ? "cw" : "ccw";
-  const key = `${landscape}|${turn}`;
+  // Short/long side ratio: Pane shapes the phone's screen to match it exactly.
+  const ratio = pictureSized ? Math.min(canvas.width, canvas.height) / Math.max(canvas.width, canvas.height) : undefined;
+  const key = `${landscape}|${turn}|${ratio}`;
   if (key === lastView) return;
   lastView = key;
-  window.parent.postMessage({ type: "pane-view", landscape, turn }, location.origin);
+  window.parent.postMessage({ type: "pane-view", landscape, turn, ratio }, location.origin);
 }
 
 function fitCanvas() {
@@ -44,7 +46,9 @@ function fitCanvas() {
   const rect = parent.getBoundingClientRect();
   const naturalW = canvas.width;
   const naturalH = canvas.height;
-  const base = Math.min(rect.width / naturalW, rect.height / naturalH);
+  // Cover, not contain: the phone screen is shaped to the picture, so this
+  // fills it edge to edge, trimming at most a pixel of rounding.
+  const base = Math.max(rect.width / naturalW, rect.height / naturalH);
   const scale = base;
   canvas.style.width = `${naturalW * scale}px`;
   canvas.style.height = `${naturalH * scale}px`;
