@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Pane — File transfer</title>
+  <link rel="icon" href="/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/files.css">
+</head>
+<body class="files-phone">
+  <main class="file-transfer" data-files-mode="phone">
+    <header class="files-phone-header"><img src="/logo.svg" width="40" height="40" alt="Pane"><span>Pane</span><span id="files-connection">Connecting…</span></header>
+    <h1>Files, across devices.</h1>
+    <p class="files-intro">Send files and photos to your PC. Save files from your PC to your iPhone.</p>
+    <p id="files-message" class="files-message" role="status" aria-live="polite"></p>
+    <form id="files-pair-form" hidden>
+      <label class="files-label" for="files-pair-code">Pairing code from Pane on your PC</label>
+      <input id="files-pair-code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{8}" minlength="8" maxlength="8" required placeholder="8-digit code">
+      <button id="files-pair-submit" type="submit">Connect to PC</button>
+    </form>
+    <div id="files-content" hidden>
+      <div class="files-drop" id="files-drop">
+        <h2>Send to PC</h2>
+        <p>Choose files or photos to save on your computer.</p>
+        <button type="button" id="files-choose">Choose files or photos</button>
+        <input type="file" id="files-input" multiple hidden>
+        <span class="files-help">Up to 1 GB per file. Keep Safari open while sending.</span>
+      </div>
+      <div id="files-progress-wrap" hidden>
+        <label for="files-progress" id="files-progress-label">Sending…</label>
+        <progress id="files-progress" value="0" max="100"></progress>
+        <button type="button" id="files-cancel">Cancel upload</button>
+      </div>
+      <h2 class="files-subtitle">From your PC</h2>
+      <p class="files-help">Tap Save to iPhone, then find the file in Safari’s Downloads. Use Share → Save to Files if Safari opens a preview.</p>
+      <ul class="files-list" id="files-outgoing"></ul>
+      <h2 class="files-subtitle">Sent to PC</h2><ul class="files-list" id="files-incoming"></ul>
+    </div>
+    <p class="files-help files-phone-footer">Everything stays on your local network. Stop file sharing in Pane to disconnect this page.</p>
+  </main>
+  <script src="/files.js"></script>
+</body>
+</html>

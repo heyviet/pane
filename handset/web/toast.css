@@ -1,0 +1,37 @@
+#pane-toast {
+  position: fixed;
+  right: max(20px, env(safe-area-inset-right));
+  bottom: max(20px, env(safe-area-inset-bottom));
+  z-index: 10000;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  align-items: center;
+  gap: 12px;
+  width: min(380px, calc(100vw - 40px));
+  box-sizing: border-box;
+  padding: 12px 8px 12px 16px;
+  border: 1px solid #3a3a44;
+  border-radius: 12px;
+  background: #17171f;
+  color: #f5f5f7;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+  font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  text-align: left;
+}
+#pane-toast[hidden] { display: none !important; }
+#pane-toast-text { overflow-wrap: anywhere; }
+#pane-toast[data-tone="warn"] { color: #ffb85c; }
+#pane-toast button {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+#pane-toast button:hover { background: #30303a; }
+#pane-toast button:focus-visible { outline: 2px solid #409cff; outline-offset: 2px; }

@@ -28,29 +28,3 @@ body {
   outline: none;
   image-rendering: high-quality;
 }
-
-.mirror-status {
-  position: absolute;
-  left: 50%;
-  bottom: 12px;
-  transform: translateX(-50%);
-  margin: 0;
-  padding: 6px 12px;
-  border-radius: 999px;
-  font: 12px/1.4 system-ui, sans-serif;
-  color: #e8e8ed;
-  background: rgba(0, 0, 0, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  pointer-events: none;
-  max-width: 92%;
-  text-align: center;
-}
-
-.mirror-status.ok {
-  opacity: 0;
-  transition: opacity 0.4s ease;
-}
-
-.mirror-status.warn {
-  color: #ff9f0a;
-}

@@ -7,6 +7,8 @@
   <title>Pane — your iPhone on Windows</title>
   <link rel="icon" type="image/svg+xml" href="/logo.svg">
   <link rel="stylesheet" href="/app.css">
+  <link rel="stylesheet" href="/files.css">
+  <link rel="stylesheet" href="/toast.css">
 </head>
 <body>
   <div class="app">
@@ -51,7 +53,7 @@
                     <p class="placeholder-title">Ready to mirror</p>
                     <p class="placeholder-hint" id="placeholder-hint">Connect your iPhone, then press Start mirroring.</p>
                   </div>
-                  <iframe id="screen-view" class="screen-frame" title="iPhone screen" hidden src="about:blank"></iframe>
+                  <iframe id="screen-view" class="screen-frame" title="iPhone screen" allow="clipboard-read; clipboard-write" hidden src="about:blank"></iframe>
                   <div class="iphone-notch" aria-hidden="true"><span class="notch-cam"></span></div>
                   <button type="button" class="fs-exit" id="fs-exit" title="Exit full screen (Esc)">Exit full screen</button>
                 </div>
@@ -101,6 +103,23 @@
               <button type="button" class="ctl ctl-sm" data-btn="volume-down">Vol −</button>
             </div>
 
+            <h2 class="card-title card-title-gap">Clipboard</h2>
+            <button type="button" class="ctl ctl-full" id="clipboard-sync" aria-pressed="false">Sync iPhone → PC: Off</button>
+            <p class="fine" id="clipboard-sync-note" role="status" aria-live="polite">Enable to use iOS’s native Copy with PC apps.</p>
+            <div class="control-row clipboard-row">
+              <button type="button" class="ctl ctl-sm" data-clipboard="paste">Paste PC clipboard</button>
+              <button type="button" class="ctl ctl-sm" data-clipboard="copy">Copy selection to PC</button>
+            </div>
+            <div class="control-row clipboard-row">
+              <button type="button" class="ctl ctl-sm" data-clipboard="get">Get iPhone clipboard</button>
+              <button type="button" class="ctl ctl-sm" data-clipboard="paste-device">Paste iPhone clipboard</button>
+            </div>
+            <div class="control-row clipboard-row">
+              <button type="button" class="ctl ctl-sm" data-clipboard="send">Send PC clipboard</button>
+            </div>
+            <p class="fine">Ctrl+C copies selected iPhone content to PC; Ctrl+V pastes PC content. To use iOS’s own Paste menu, click Send PC clipboard, then hold the left mouse button on the text field. Native Copy updates PC automatically when sync is on.</p>
+            <p class="fine">Videos: copy one MP4, MOV or M4V file on PC, then paste into an iPhone app that accepts videos. Direct clips are limited to 32 MB. Videos copied to PC can be pasted into Explorer or apps that accept video files.</p>
+
             <div class="view-tools">
               <span class="view-label">View</span>
               <div class="zoom-cluster">
@@ -114,6 +133,43 @@
               </div>
               <button type="button" class="ctl ctl-full" id="fullscreen" title="Full screen touch view (Esc to exit)">⛶ Full screen</button>
             </div>
+          </section>
+
+          <section class="card file-transfer" id="files-panel" data-files-mode="desktop" aria-labelledby="files-title">
+            <div class="files-heading"><h2 class="card-title" id="files-title">Files</h2><span id="files-connection">Sharing off</span></div>
+            <p class="files-intro">Send files to your iPhone or receive them on this PC over Wi-Fi.</p>
+            <button type="button" class="ctl" id="files-toggle">Start file sharing</button>
+            <div id="files-pairing" hidden>
+              <p class="files-intro">Camera unavailable while mirroring? Open this address in Safari on your iPhone:</p>
+              <p class="files-manual-address" id="files-manual-address"></p>
+              <p class="files-label">Then enter this pairing code:</p>
+              <p class="files-code" id="files-code"></p>
+              <p class="files-intro">Scan with your iPhone camera and open in Safari. Keep both devices on the same Wi-Fi.</p>
+              <img id="files-qr" class="files-qr" alt="Scan to pair your iPhone for file transfers" width="180" height="180" hidden>
+              <label class="files-label" for="files-address">PC network address</label>
+              <select id="files-address"></select>
+              <label class="files-label" for="files-link">Or open this link on your iPhone</label>
+              <input id="files-link" type="text" readonly>
+              <button type="button" class="ctl" id="files-copy">Copy pairing link</button>
+              <p class="files-help">If Safari cannot connect, allow Python on your trusted Wi-Fi in Windows Firewall. Transfers use your local network; use Wi-Fi you trust.</p>
+            </div>
+            <div id="files-content" hidden>
+              <div class="files-drop" id="files-drop">
+                <p>Drop files here to send to iPhone</p>
+                <button class="ctl" type="button" id="files-choose">Choose files</button>
+                <input id="files-input" type="file" multiple hidden>
+                <span class="files-help">Up to 1 GB per file. Save each file from Safari on your iPhone.</span>
+              </div>
+              <div id="files-progress-wrap" hidden>
+                <label for="files-progress" id="files-progress-label">Sending…</label>
+                <progress id="files-progress" max="100" value="0"></progress>
+                <button type="button" class="ctl" id="files-cancel">Cancel upload</button>
+              </div>
+              <h3 class="files-subtitle">Ready for iPhone</h3><ul id="files-outgoing" class="files-list"></ul>
+              <h3 class="files-subtitle">Received on PC</h3><ul id="files-incoming" class="files-list"></ul>
+              <p class="files-help" id="files-folder"></p>
+            </div>
+            <p id="files-message" class="files-message" role="status" aria-live="polite"></p>
           </section>
 
           <section class="card" id="device-card">
@@ -184,7 +240,9 @@ pip install pymobiledevice3</code></pre>
       <p>Pane · MIT · Mirror and control your iPhone over USB or Wi‑Fi</p>
     </footer>
   </div>
-  <script src="/keys.js"></script>
+  <script src="/toast.js"></script>
+  <script src="/keys.js?v=clipboard-bridge-2"></script>
   <script src="/app.js"></script>
+  <script src="/files.js"></script>
 </body>
 </html>

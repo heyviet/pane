@@ -252,7 +252,7 @@ function renderDetail(device) {
 
 function renderScreen(screen) {
   if (!screen) return;
-  const mirroring = screen.phase === "running";
+  const mirroring = screen.phase === "running" && screen.transport === transport;
   if (mirroring) {
     workspace.classList.add("is-live");
     phoneShell.classList.add("live");
@@ -283,6 +283,11 @@ function renderScreen(screen) {
     screenNote.className = "";
     showScreen.disabled = true;
     showScreen.textContent = "Connecting…";
+    return;
+  }
+  if (screen.phase === "running" && screen.transport !== transport) {
+    screenNote.textContent = `Click Start mirroring to connect over ${transport === "wifi" ? "Wi-Fi" : "USB"}.`;
+    screenNote.className = "";
     return;
   }
   if (screen.error) {
@@ -477,8 +482,47 @@ function setKeyboard(on) {
 
 const keyboard = window.HandsetKeys.attach({
   post: (payload) => mirrorPost("/key", payload),
-  enabled: () => window.handsetKeyboardOn && workspace.classList.contains("is-live"),
+  enabled: () => window.handsetKeyboardOn && workspace.classList.contains("is-live")
+    && !document.activeElement?.closest(".file-transfer"),
+  onError: (error) => {
+    window.PaneToast.show(error.message, "warn", "clipboard");
+  },
+  onStatus: (message) => {
+    window.PaneToast.show(message, "", "clipboard");
+  },
 });
+
+document.querySelectorAll("[data-clipboard]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    try { await keyboard.action(button.dataset.clipboard); }
+    finally { button.disabled = false; }
+  });
+});
+
+const clipboardSyncButton = document.querySelector("#clipboard-sync");
+let clipboardSyncBusy = false;
+async function updateClipboardSync(action = "sync-status") {
+  if (clipboardSyncBusy) return;
+  clipboardSyncBusy = true;
+  clipboardSyncButton.disabled = true;
+  try {
+    const result = await postJson("/api/clipboard/action", {action});
+    clipboardSyncButton.setAttribute("aria-pressed", String(result.enabled));
+    clipboardSyncButton.textContent = `Sync iPhone → PC: ${result.enabled ? "On" : "Off"}`;
+    document.querySelector("#clipboard-sync-note").textContent = result.message;
+    if (action !== "sync-status") localStorage.setItem("handset-clipboard-sync", String(result.enabled));
+  } catch (error) {
+    document.querySelector("#clipboard-sync-note").textContent = error.message;
+  } finally {
+    clipboardSyncBusy = false;
+    clipboardSyncButton.disabled = false;
+  }
+}
+clipboardSyncButton.addEventListener("click", () => updateClipboardSync(
+  clipboardSyncButton.getAttribute("aria-pressed") === "true" ? "sync-off" : "sync-on"));
+updateClipboardSync(localStorage.getItem("handset-clipboard-sync") === "true" ? "sync-on" : "sync-status");
+window.setInterval(() => { if (!document.hidden) updateClipboardSync(); }, 3000);
 
 function wireRemoteControls() {
   kbToggle.addEventListener("click", () => setKeyboard(!window.handsetKeyboardOn));
@@ -486,7 +530,7 @@ function wireRemoteControls() {
   // A focused button would swallow Space and Enter instead of typing them.
   document.addEventListener("pointerup", (e) => {
     const btn = e.target.closest?.("button");
-    if (btn) btn.blur();
+    if (btn && !btn.closest(".file-transfer")) btn.blur();
   });
   document.querySelectorAll("[data-gesture]").forEach((btn) => {
     btn.addEventListener("click", () => gesture(btn.dataset.gesture));

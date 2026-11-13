@@ -12,6 +12,8 @@ from handset.device import read_handset, snapshot
 from handset.mux import MuxError
 from handset.screen import restart_screen, screen_status, start_screen
 from handset.wifi import pair_for_wifi, wifi_paired_udids
+from handset.transfers import transfers
+from handset.clipboard import clipboard_action
 
 ROOT = Path(__file__).resolve().parent / "web"
 HOST = "127.0.0.1"
@@ -27,6 +29,8 @@ _CLIENT_GONE = (BrokenPipeError, ConnectionAbortedError, ConnectionResetError)
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
+        if transfers.handle(self, "GET", True):
+            return
         path = urlparse(self.path).path
         if path == MIRROR_PREFIX or path.startswith(f"{MIRROR_PREFIX}/"):
             self._proxy_mirror("GET")
@@ -50,7 +54,29 @@ class Handler(BaseHTTPRequestHandler):
         self._file(path)
 
     def do_POST(self) -> None:
+        if transfers.handle(self, "POST", True):
+            return
         path = urlparse(self.path).path
+        if path == "/api/clipboard/action":
+            host = self.headers.get("Host", "")
+            origin = self.headers.get("Origin")
+            if (urlparse("http://" + host).hostname not in {"127.0.0.1", "localhost", "::1"}
+                    or (origin and origin != "http://" + host)
+                    or self.headers.get("Sec-Fetch-Site") == "cross-site"):
+                self.close_connection = True
+                self._json({"error": "Open Pane through localhost to use the clipboard."}, 403)
+                return
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if not 0 < length <= 1024:
+                    raise ValueError("Invalid clipboard request.")
+                payload = json.loads(self.rfile.read(length))
+                if not isinstance(payload, dict) or not isinstance(payload.get("action"), str):
+                    raise ValueError("Invalid clipboard action.")
+                self._json(clipboard_action(payload["action"]))
+            except (ValueError, OSError, RuntimeError) as error:
+                self._json({"error": str(error)}, 502)
+            return
         if path == MIRROR_PREFIX or path.startswith(f"{MIRROR_PREFIX}/"):
             self._proxy_mirror("POST")
             return

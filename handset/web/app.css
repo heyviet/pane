@@ -462,6 +462,12 @@ button:active { transform: scale(0.98); }
   font-size: 11px;
 }
 
+.control-row.clipboard-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.clipboard-row .ctl { font-size: 12px; padding: 10px 8px; }
+#clipboard-sync { width: 100%; }
+#clipboard-sync[aria-pressed="true"] { color: var(--ok); }
+#clipboard-sync-note { margin: 8px 0 12px; }
+
 .ctl-icon {
   min-width: 40px;
   padding: 8px;

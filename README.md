@@ -31,6 +31,8 @@ It is an alternative to paid tools such as ApowerMirror, LonelyScreen, Reflector
 - 📱 **Live iPhone screen mirroring on Windows**: low-latency HEVC (H.265) video decoded in hardware.
 - 🖱️ **Control the iPhone with your mouse**: tap, long-press, drag and swipe directly on the mirrored screen.
 - ⌨️ **Type on your iPhone with the PC keyboard**: real keystrokes, including Ctrl+C / Ctrl+V / Ctrl+A / Ctrl+Z mapped to ⌘ shortcuts.
+- 📋 **Shared text, image and video clipboard**: PC shortcuts, native iOS Copy sync, HEIC support and inline Notes video extraction.
+- 📁 **Paired file sharing over Wi-Fi**: drag-and-drop, Safari companion, QR or camera-free code pairing, progress and cancellation.
 - 📶 **Wireless mirroring over Wi-Fi**: pair once over USB, then go cable-free on the same network.
 - 🔌 **USB cable mode**: the most stable, lowest-latency connection.
 - 🏠 **Hardware buttons & gestures**: Home, App Switcher, Lock/Power, Siri, Volume up/down, Mute, Notification Center, Control Center, back/forward swipes.
@@ -45,7 +47,7 @@ It is an alternative to paid tools such as ApowerMirror, LonelyScreen, Reflector
 2. Install Apple's USB driver by installing **[Apple Devices](https://apps.microsoft.com/detail/9np83lwlpz9k)** (or iTunes) from the Microsoft Store.
 3. Plug the iPhone into the PC, unlock it and tap **Trust This Computer**.
 4. Turn on **Developer Mode** on the iPhone: *Settings → Privacy & Security → Developer Mode → On* (the iPhone restarts).
-   If you don't see the option, connect to Pane once and it will appear.
+   If the switch is missing, see the Developer Mode command in [Troubleshooting](#troubleshooting).
 5. Run **Pane.exe** and click **Start mirroring**.
 
 ### Go wireless (Wi-Fi)
@@ -58,71 +60,162 @@ It is an alternative to paid tools such as ApowerMirror, LonelyScreen, Reflector
 
 ## Controls
 
-| Action on PC | Result on iPhone |
+| Action on PC | Result |
 | --- | --- |
-| Left click / drag | Tap / swipe |
-| Swipe up from the bottom edge | Go Home (pause before releasing for the App Switcher) |
-| Right click | Home |
-| Keyboard | Types into the focused text field |
-| Ctrl + C / V / X / A / Z | Copy / Paste / Cut / Select all / Undo |
-| Side buttons on the frame | Lock, Volume up/down, Mute |
+| Left click / drag on the mirrored screen | Tap / swipe |
+| Hold the left mouse button | Native iOS selection / edit menu, where the app supports it |
+| Swipe up from the bottom edge | Home; pause before releasing for App Switcher |
+| Deliberate mouse right click | Home |
+| Keyboard with forwarding enabled | Type into the focused iPhone field |
+| Ctrl+C / Ctrl+X | Copy / cut selected iPhone content to the PC clipboard |
+| Ctrl+V | Transfer PC clipboard content and request Paste on iPhone |
+| Ctrl+A / Ctrl+Z | Select all / Undo on iPhone |
+| Frame side buttons | Lock, Volume up/down, Mute |
+
+Click the destination inside the mirrored iPhone before typing or pasting. Pane’s own inputs and buttons retain normal browser keyboard behavior. Keyboard forwarding can be turned off in the connection panel.
+
+### Shared clipboard: text, images and videos
+
+The Windows server bridges the clipboards directly, so browser clipboard permission is not required.
+
+- **PC → iPhone:** copy text or image pixels on PC, then press **Ctrl+V** in the mirrored destination, or click **Paste PC clipboard**.
+- **iPhone → PC:** select content on iPhone and press **Ctrl+C**, or click **Copy selection to PC**. If you already chose Copy in iOS’s native menu, click **Get iPhone clipboard** instead.
+- **Native Copy sync:** turn **Sync iPhone → PC** on to transfer new native iOS copies automatically while mirroring is connected. The toggle remembers your choice in that browser. Sync ignores the existing clipboard when monitoring starts and changes Pane itself sent to the phone. Its status appears below the toggle; turn it off to stop automatic PC clipboard updates.
+- **Native Paste menu:** click **Send PC clipboard** to update the phone clipboard without inserting anything, then hold on the destination and choose Paste. **Paste iPhone clipboard** requests Paste without replacing the phone clipboard with PC content.
+
+Clipboard notifications appear at the browser’s bottom-right, outside the phone display, with a dismiss button. Completed messages clear after six seconds; warnings remain until dismissed. Notifications also work in full-screen mode.
+
+#### Images
+
+Screenshots and copied image pixels work with iPhone apps that accept images, such as Notes and Messages. PNG, Windows DIB/DIBV5, JPEG and native iPhone HEIC/HEIF images are normalized to PNG. Images returned to Windows also include a DIB fallback for PC apps without PNG clipboard support.
+
+Copy the image itself when possible. Notes/Safari can place pictures inside rich document representations; resolving those can take about a minute. The bridge transfers the first image rather than an entire rich document or multiple images. Copying an image file in Explorer is different from copying its pixels; use the Files panel for ordinary file transfer.
+
+#### Direct video paste
+
+1. In Windows Explorer, copy **one MP4, MOV or M4V file**.
+2. Focus a destination inside the mirrored iPhone that accepts video attachments, then press **Ctrl+V** or **Paste PC clipboard**.
+3. To use the iOS menu instead, choose **Send PC clipboard**, then native Paste.
+
+The original movie bytes are transferred without transcoding. The destination app must accept the movie format and codec; a successful clipboard transfer cannot make an app support video paste.
+
+For **iPhone → PC**, copy the video itself and use Ctrl+C, **Get iPhone clipboard**, or native Copy with sync enabled. Pane extracts inline movies from Notes’ own rich-text archives and gives video data priority over thumbnails. Received clips are saved in `~/Downloads/Pane/Clipboard videos` and placed on the Windows clipboard as file references. Paste into Explorer to copy the file, or into a PC app that accepts video-file paste. Chat apps may require attaching or dragging in the saved file instead of Ctrl+V. Clips remain on disk after Pane exits.
+
+Some apps provide only a device-local file reference or a share link instead of movie bytes. Pane does not follow those references; use the Files workflow for those clips.
+
+#### Transfer limits
+
+| Content | Limit |
+| --- | --- |
+| Text from PC to iPhone | 1 MiB of UTF-8 text |
+| Clipboard image | 32 MiB after PNG conversion; 40 megapixels |
+| Direct clipboard video | 32 MiB; one MP4, MOV or M4V at a time |
+| Files panel | 1 GiB per file |
+
+The interface labels these binary limits as MB/GB. PNG conversion can make a compressed photo larger than its original file size. Use Files for larger items.
+
+## File sharing over Wi-Fi
+
+1. In Pane’s **Files** panel, click **Start file sharing**.
+2. Keep the PC and iPhone on the same trusted Wi-Fi network. Scan the QR code with the iPhone camera and open it in Safari.
+3. **Without the camera:** mirroring can make the camera unavailable. Type the short address displayed in the Files panel into Safari, then enter the **8-digit pairing code**. You can do this through the mirrored screen. Failed pairing attempts are limited to five per minute.
+4. **PC → iPhone:** drag files into the Files panel or click **Choose files**. In Safari, tap **Save to iPhone**. Find the download in Safari’s Downloads, or use **Share → Save to Files** if a preview opens.
+5. **iPhone → PC:** in Safari, choose files, photos or videos. Completed uploads appear in Pane and are saved under `~/Downloads/Pane/Received`.
+6. Click **Stop file sharing** to close the network listener and revoke the pairing link/code. Starting again creates new credentials.
+
+Uploads show progress and can be cancelled. Keep Safari open during transfer. Each file can be up to 1 GiB. Mirroring and file sharing work independently.
+
+File sharing uses **HTTP on local port 8767**, without TLS. Use Wi-Fi you trust. If Safari cannot connect, choose the PC’s Wi-Fi address in the panel and allow Python/Pane through Windows Firewall on that network. The listener binds to the PC’s network interfaces only while sharing is enabled; anyone with the current pairing link or code can pair.
+
+Only selected files are shared. The phone-facing listener cannot access mirroring or device controls. Shared copies are kept in `~/Downloads/Pane/Shared`; received files and shared copies remain on disk when sharing stops. The file list belongs to the current Pane process and resets when Pane restarts.
 
 ## Requirements
 
 - Windows 10 or Windows 11 (64-bit)
-- Google Chrome or Microsoft Edge (used as the app window)
-- iPhone or iPad running **iOS / iPadOS 17 or newer** with Developer Mode enabled
-- Apple Devices app or iTunes (for the USB driver)
+- Google Chrome or Microsoft Edge for mirroring (WebCodecs HEVC support)
+- iPhone/iPad running iOS/iPadOS **17.4 or newer**, with Developer Mode enabled
+- Apple Devices or iTunes for the USB driver and connection process
+- For source use: Python **3.12 recommended**
+- For the regression tests: Node.js **22 or newer**
 
 ## Run from source
 
 ```powershell
-git clone https://github.com/teyboxv1/pane-iphone-mirror-windows.git
-cd pane-iphone-mirror-windows
-pip install -r requirements.txt
-python -m handset.server      # then open http://127.0.0.1:8765
+git clone https://github.com/heyviet/pane.git
+cd pane
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m handset.server
 ```
+
+Open **http://127.0.0.1:8765** in Chrome or Edge. Keep the server process running. To use the dedicated desktop window instead, run:
+
+```powershell
+.\.venv\Scripts\python.exe -m handset.app
+```
+
+### Troubleshooting
+
+- **Windows sees the iPhone, but Pane does not:** open Apple Devices and keep it running; reconnect and unlock the phone, then accept Trust. Store versions can use an Apple connection process rather than a service with the traditional name.
+- **Developer Mode is missing:** with the trusted phone connected and unlocked, run the following command, then close/reopen Settings → Privacy & Security, scroll to Developer Mode, enable it, restart and confirm Turn On:
+
+  ```powershell
+  .\.venv\Scripts\python.exe -m pymobiledevice3 amfi reveal-developer-mode
+  ```
+
+  This reveals the switch; it does not enable Developer Mode or restart the phone automatically.
+- **Switching from USB to Wi-Fi:** choose Wi-Fi and click Start mirroring. Pane closes the previous stream/tunnel before opening the selected transport. A completed Wi-Fi pairing does not by itself change an active USB stream.
+- **Native Copy is not reaching PC:** enable Sync iPhone → PC, or use Get iPhone clipboard. Check the sync status below the toggle. A video returned to PC is a file, not pasted text; use an attachment/file drop if the destination app requires one.
+- **After updating frontend files:** refresh Pane with Ctrl+Shift+R. Python server changes require restarting the server; reconnect mirroring and re-enable sharing afterward.
+- **Frozen picture:** use Restart screen. Keep the phone unlocked and connected to the chosen transport.
+
+### Tests
+
+```powershell
+.\.venv\Scripts\python.exe -m pip check
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+node --test tests/keys.test.cjs tests/mirror-input.test.cjs
+```
+
+The suite covers transport replacement, acknowledged HID dispatch, native clipboard sync, image conversion, video/Notes extraction, Windows file clipboard formats, pairing/revocation, access boundaries, file integrity, size limits, interrupted uploads, keyboard focus and long-press behavior. Mocked device/clipboard tests do not require a connected phone. GitHub Actions runs the suite on Windows with Python 3.12 and Node 22.
+
+`pymobiledevice3` is pinned to the version used for live device validation. The stream/clipboard adapters use some internal library hooks, so upgrades need the regression suite and a physical-device check.
 
 ### Build the Windows EXE
 
 ```powershell
-pip install pyinstaller pillow
-powershell -ExecutionPolicy Bypass -File packaging\build.ps1   # -> dist\Pane.exe
+.\.venv\Scripts\python.exe -m pip install pyinstaller
+.\.venv\Scripts\Activate.ps1
+powershell -ExecutionPolicy Bypass -File packaging\build.ps1
 ```
+
+The output is `dist/Pane.exe`. The packaging recipe includes the web assets, QR generator, Windows clipboard modules and HEIC decoder/native libraries.
 
 ## How it works
 
-Pane uses [pymobiledevice3](https://github.com/doronz88/pymobiledevice3) to open a secure RemoteXPC / RSD tunnel to the iPhone (over USB, or over Wi-Fi via Bonjour remote pairing), starts the iOS screen-capture service, and streams the HEVC video to a local web UI that decodes it with WebCodecs. Touches, buttons and keystrokes are sent back as HID events. Everything runs locally on `127.0.0.1`.
+Pane uses [pymobiledevice3](https://github.com/doronz88/pymobiledevice3) for a secure RemoteXPC/RSD tunnel to the iPhone over USB or Wi-Fi. It starts iOS screen capture, streams HEVC to the browser through a loopback proxy, and sends mouse/keyboard events back as HID reports. Clipboard shortcuts wait for device-side key dispatch instead of treating enqueueing as completed input. The pasteboard bridge handles text, images, and supported inline movies.
 
-```
-iPhone ──USB / Wi-Fi tunnel──▶ Pane server (Python) ──localhost──▶ App window (WebCodecs + HID input)
-```
+Mirroring controls stay on **127.0.0.1:8765**, with the internal video service on **127.0.0.1:8766**. The optional, paired file-transfer listener uses **port 8767** on the local network. No cloud service is involved.
 
 ## FAQ
 
-**Can I mirror my iPhone to Windows for free?**
-Yes. Pane is free and open source (GPL-3.0).
+**Can I mirror and control my iPhone for free?**
+Yes. Pane is open source under GPL-3.0, with mouse/keyboard control over USB or Wi-Fi.
 
-**Can I control my iPhone from my PC, not just view it?**
-Yes. Unlike AirPlay receivers, Pane sends real touch, button and keyboard input to the iPhone.
+**Do I need a jailbreak, Mac or Xcode?**
+No. You need a supported iPhone, Windows, Apple’s USB software, Trust and Developer Mode.
 
-**Does it work without a cable?**
-Yes. After a one-time USB pairing, Pane mirrors and controls the iPhone over Wi-Fi on the same network.
+**Why Developer Mode?**
+iOS exposes the required developer display/input services only with Developer Mode enabled. You can turn it off afterward.
 
-**Do I need to jailbreak my iPhone?**
-No. Pane uses Apple's built-in developer services. You only need Developer Mode turned on.
+**Does enabling Wi-Fi mirroring also enable file sharing?**
+No. File sharing has its own Start/Stop control, pairing credentials and Safari companion page. It does not require the mirroring stream to be active.
 
-**Do I need a Mac or Xcode?**
-No. Everything runs on Windows.
+**Is anything uploaded to a cloud service?**
+No. Transfers remain between your PC and iPhone on the local connection/network. LAN file sharing uses HTTP, so choose a trusted network.
 
-**Why does it need Developer Mode?**
-iOS only exposes screen streaming and input injection through its developer services, which require Developer Mode. You can turn it off again at any time.
-
-**Windows SmartScreen warns about Pane.exe — is it safe?**
-The executable isn't code-signed yet, so Windows shows a warning for new downloads. Click *More info → Run anyway*, or build it yourself from source.
-
-**Is my data sent anywhere?**
-No. The video and input stay between your iPhone and your PC.
+**Windows warns about an unsigned EXE.**
+The portable executable is not code-signed. You can run the source or build it yourself using the steps above.
 
 ## Keywords
 

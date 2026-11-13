@@ -1,7 +1,6 @@
 const MIRROR = "/mirror";
 const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
-const statusEl = document.getElementById("mirror-status");
 
 let visualRotation = 0;
 let zoom = 1;
@@ -17,10 +16,14 @@ let frameCount = 0;
 let runGeneration = 0;
 let abortStream = null;
 
-function setStatus(text, tone) {
-  if (!statusEl) return;
-  statusEl.textContent = text;
-  statusEl.className = "mirror-status" + (tone ? ` ${tone}` : "");
+function setStatus(text, tone, category = "stream") {
+  if (window.parent !== window) {
+    window.parent.postMessage({type: "pane-toast", text, tone, category, dismiss: tone === "ok"}, location.origin);
+  } else if (tone === "ok") {
+    window.PaneToast.clear(category);
+  } else {
+    window.PaneToast.show(text, tone, category);
+  }
 }
 
 function fitCanvas() {
@@ -151,6 +154,7 @@ function releaseActive() {
 // Listen on the whole document so a drag can start on the black margin just
 // below the picture; coordinates clamp onto the screen edge.
 document.addEventListener("pointerdown", (e) => {
+  if (e.target.closest?.("#pane-toast")) return;
   if (e.button !== 0) return;
   e.preventDefault();
   canvas.focus({ preventScroll: true });
@@ -200,12 +204,17 @@ document.addEventListener("visibilitychange", () => {
 });
 
 document.addEventListener("contextmenu", (e) => {
+  if (e.target.closest?.("#pane-toast")) return;
   e.preventDefault();
-  pressHome();
+  // A browser can raise contextmenu during an active long press. Keep that
+  // finger down for UIKit; Home is only the deliberate mouse right-click.
+  if (activePointer === null && e.pointerType === "mouse" && e.button === 2) pressHome();
 });
 
 window.HandsetKeys.attach({
   post: (payload) => postJson("/key", payload),
+  onError: (error) => setStatus(error.message, "warn", "clipboard"),
+  onStatus: (message) => setStatus(message, "", "clipboard"),
   enabled: () => {
     try {
       return window.parent.handsetKeyboardOn !== false;
