@@ -30,7 +30,7 @@ _START_LOCK = threading.Lock()
 _SESSION = None
 _SERVER = None
 _SYNC_LOCK = threading.Lock()
-_SYNC_STATE = {"enabled": False, "phase": "off", "message": "Native iOS Copy sync is off.", "count": 0}
+_SYNC_STATE = {"enabled": False, "phase": "off", "message": "Native iOS Copy sync is off.", "count": 0, "pick": 0}
 _STATE = {"phase": "idle", "udid": None, "url": None, "error": None, "note": None, "transport": None}
 
 
@@ -292,29 +292,55 @@ async def _configure_clipboard_sync(server, enabled):
     else:
         monitor._on_change = changed
         monitor._allow_full_pull = True
-    original_check = monitor._check
-
     async def check():
-        if active():
-            _sync_state(phase="reading", message="Reading iPhone copy… rich images can take about a minute.")
+        unsupported = None
         try:
-            # Movie copies may include a still-image thumbnail. Inspect the real
-            # movie representation first, instead of synchronizing its cover.
             import hashlib
+            from handset import phone_pasteboard
             from handset.video_clipboard import movie_types, read_video
+            from handset.phone_videos import is_photos_video
             from pymobiledevice3.remote.core_device.pasteboard_service import (
-                PasteboardService, PasteboardContent, POLICY_PROMISE_SECONDARY, _change_id,
+                PasteboardService, PasteboardContent, POLICY_ALL_PROMISED, POLICY_PROMISE_SECONDARY, _change_id,
             )
+            # Types only first: loading even the primary representation can block
+            # forever (Photos never provides a copied video's movie data).
             async with PasteboardService(server._rsd) as service:
-                snapshot = await service.get(data_policy=POLICY_PROMISE_SECONDARY)
+                types_only = await asyncio.wait_for(service.get(data_policy=POLICY_ALL_PROMISED), 15)
+            pending_sets = getattr(monitor, "_set_tasks", None)
+            if pending_sets:
+                # Let a pending host SET name its change before judging whose copy this is.
+                await asyncio.wait(list(pending_sets), timeout=1.0)
+            change = _change_id(types_only)
+            if change is not None and change == monitor._last_change:
+                return
+            if change is not None and change in monitor._own_changes:
+                monitor._last_change = change
+                return
+            if active():
+                _sync_state(phase="reading", message="Reading iPhone copy… rich images can take about a minute.")
+            if is_photos_video(types_only):
+                monitor._last_change = change
+                if active():
+                    with _SYNC_LOCK:
+                        _SYNC_STATE.update(phase="pick-video", pick=_SYNC_STATE.get("pick", 0) + 1,
+                                           message="Photos keeps copied videos on the iPhone. Choose it in the video picker.")
+                return
+            try:
+                async with PasteboardService(server._rsd) as service:
+                    snapshot = await asyncio.wait_for(service.get(data_policy=POLICY_PROMISE_SECONDARY), 30)
+            except asyncio.TimeoutError:
+                monitor._last_change = change
+                if active():
+                    _sync_state(phase="error", message="The iPhone app never provided its copied content. Try Get iPhone clipboard.")
+                return
+            video_error = None
             if movie_types(snapshot):
-                change = _change_id(snapshot)
-                if change is not None and change == monitor._last_change:
-                    return
-                if change is not None and change in monitor._own_changes:
-                    monitor._last_change = change
-                    return
-                video = await read_video(server._rsd, snapshot)
+                # Movie copies may include a still-image thumbnail. Inspect the real
+                # movie representation first, instead of synchronizing its cover.
+                try:
+                    video = await read_video(server._rsd, snapshot)
+                except ValueError as error:
+                    video, video_error = None, error
                 if video is not None:
                     monitor._last_change = change
                     recent = monitor._recent_host_content.get(hashlib.sha1(video.data).hexdigest(), 0)
@@ -326,13 +352,37 @@ async def _configure_clipboard_sync(server, enabled):
                         server._pane_sync_tasks.add(task)
                         task.add_done_callback(server._pane_sync_tasks.discard)
                     return
-            await original_check()
+            # Messages bubbles and Photos copies keep their text/picture outside the
+            # primary representation; this reader decodes and, if needed, resolves them.
+            try:
+                snapshot, content = await phone_pasteboard.read(server._rsd, snapshot)
+            except asyncio.TimeoutError:
+                # Not recorded as seen, so the next notification looks again.
+                if active():
+                    _sync_state(phase="error", message="The iPhone app took too long to provide its copy. Try Get iPhone clipboard.")
+                return
+            monitor._last_change = change
+            now = time.monotonic()
+            monitor._recent_host_content = {
+                sent: at for sent, at in monitor._recent_host_content.items() if now - at < 3.0
+            }
+            if not content:
+                if video_error is not None:
+                    raise video_error
+                unsupported = phone_pasteboard.describe(snapshot)
+                return
+            payload = content.image if content.image is not None else content.text.encode("utf-8")
+            if hashlib.sha1(payload).hexdigest() in monitor._recent_host_content:
+                return
+            changed(content)
         except ValueError as error:
             if active():
                 _sync_state(phase="error", message=str(error))
         finally:
             if active() and clipboard_sync_status()["phase"] == "reading":
-                _sync_state(phase="watching", message="Watching native iOS Copy. No new transferable content yet.")
+                message = ("Watching native iOS Copy. No new transferable content yet." if unsupported is None
+                           else f"That iPhone copy had no text or image Pane can read ({unsupported}).")
+                _sync_state(phase="watching", message=message)
 
     monitor._check = check
     server._pane_sync_active = True
@@ -388,8 +438,8 @@ def read_rich_clipboard():
         raise RuntimeError("Start mirroring before reading the iPhone clipboard.")
 
     async def read():
-        from pymobiledevice3.remote.core_device.pasteboard_service import read_pasteboard
-        _, content = await read_pasteboard(server._rsd, allow_full_pull=True)
+        from handset import phone_pasteboard
+        _, content = await phone_pasteboard.read(server._rsd)
         return {"text": content.text, "image": content.image}
 
     operation = asyncio.run_coroutine_threadsafe(read(), session.loop)
@@ -432,6 +482,35 @@ def set_video_clipboard(content):
                 monitor._own_changes = [*monitor._own_changes, change][-16:]
                 monitor._recent_host_content.pop(hashlib.sha1(content.data).hexdigest(), None)
     return _media_operation(send())
+
+
+def _phone_operation(make, timeout, message):
+    """Run ``make(rsd)`` on the mirroring session's loop."""
+    session, server = _SESSION, _SERVER
+    if session is None or session.loop is None or server is None:
+        raise RuntimeError("Start mirroring before reading iPhone videos.")
+    operation = asyncio.run_coroutine_threadsafe(make(server._rsd), session.loop)
+    try:
+        return operation.result(timeout=timeout)
+    except TimeoutError:
+        operation.cancel()
+        raise RuntimeError(message)
+
+
+def phone_video_library():
+    from handset import phone_videos
+    return _phone_operation(phone_videos.library, 60, "The iPhone did not list its videos. Unlock it and try again.")
+
+
+def phone_video_thumbnail(path):
+    from handset import phone_videos
+    return _phone_operation(lambda rsd: phone_videos.thumbnail(rsd, path), 15, "The iPhone did not provide a thumbnail.")
+
+
+def fetch_phone_video(path):
+    from handset import phone_videos
+    return _phone_operation(lambda rsd: phone_videos.fetch(rsd, path), 900,
+                            "Copying the video from the iPhone took too long. Use the Files panel for very large videos.")
 
 
 def read_video_clipboard():

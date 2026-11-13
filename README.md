@@ -89,6 +89,8 @@ Clipboard notifications appear at the browser’s bottom-right, outside the phon
 
 Screenshots and copied image pixels work with iPhone apps that accept images, such as Notes and Messages. PNG, Windows DIB/DIBV5, JPEG and native iPhone HEIC/HEIF images are normalized to PNG. Images returned to Windows also include a DIB fallback for PC apps without PNG clipboard support.
 
+Copies from Messages bubbles and the Photos library are supported: Pane decodes rich (attributed/RTF/HTML) text and images published under any type, and resolves representations the app only promised. If a copy still cannot be read, the sync status lists the types the app offered.
+
 Copy the image itself when possible. Notes/Safari can place pictures inside rich document representations; resolving those can take about a minute. The bridge transfers the first image rather than an entire rich document or multiple images. Copying an image file in Explorer is different from copying its pixels; use the Files panel for ordinary file transfer.
 
 #### Direct video paste
@@ -98,6 +100,8 @@ Copy the image itself when possible. Notes/Safari can place pictures inside rich
 3. To use the iOS menu instead, choose **Send PC clipboard**, then native Paste.
 
 The original movie bytes are transferred without transcoding. The destination app must accept the movie format and codec; a successful clipboard transfer cannot make an app support video paste.
+
+**Photos videos:** Photos’ ••• → Copy on a video never hands the movie to a PC (iOS only promises it). When Pane sees such a copy, through native Copy sync, Ctrl+C or **Get iPhone clipboard**, it opens a picker of recent camera-roll videos with thumbnails. Pick the one you copied, and Pane streams the original file and puts it on the Windows clipboard. **Pick iPhone video…** opens the picker any time. iOS doesn’t tell Pane which video was copied, so the picker shows two views. **Recently added, downloaded or opened** lists videos recorded, saved, downloaded from iCloud or opened in Photos in the last day; an older video you just opened in Photos usually appears here. Below it, **all videos on the iPhone** are listed newest recording first and grouped by month, like the Photos library. The list includes camera-roll videos and iCloud Photos originals downloaded to the iPhone, and it refreshes while open. With Optimize iPhone Storage, copying an older video makes Photos download it, and it appears as soon as the download finishes. Videos that exist only in iCloud appear once Photos has downloaded them.
 
 For **iPhone → PC**, copy the video itself and use Ctrl+C, **Get iPhone clipboard**, or native Copy with sync enabled. Pane extracts inline movies from Notes’ own rich-text archives and gives video data priority over thumbnails. Received clips are saved in `~/Downloads/Pane/Clipboard videos` and placed on the Windows clipboard as file references. Paste into Explorer to copy the file, or into a PC app that accepts video-file paste. Chat apps may require attaching or dragging in the saved file instead of Ctrl+V. Clips remain on disk after Pane exits.
 
