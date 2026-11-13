@@ -19,6 +19,10 @@
   text-align: left;
 }
 #pane-toast[hidden] { display: none !important; }
+/* Close always takes the last column, right-aligned, even when there are no
+   action buttons (an empty actions box is hidden, which would otherwise pull
+   the close button into its column). */
+#pane-toast > button { grid-column: 3; justify-self: end; }
 #pane-toast-text { overflow-wrap: anywhere; }
 #pane-toast[data-tone="warn"] { color: #ffb85c; }
 #pane-toast-actions { display: flex; gap: 6px; }
