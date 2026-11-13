@@ -75,7 +75,9 @@ button:active { transform: scale(0.98); }
   height: 100vh;
   height: 100dvh;
   display: grid;
-  place-items: center;
+  /* "safe" keeps a zoomed-in phone scrollable from its top-left edge. */
+  place-items: safe center;
+  overflow: auto;
   padding: var(--edge) 24px;
 }
 
@@ -115,7 +117,8 @@ body.is-live { --reserve: 60px; }
    device's long side (--h) so the frame keeps its proportions at any window
    size, in portrait and in landscape. */
 .iphone {
-  --h: clamp(380px, calc(100dvh - 92px - var(--reserve, 0px)), 980px);
+  --fit: clamp(380px, calc(100dvh - 92px - var(--reserve, 0px)), 980px);
+  --h: calc(var(--fit) * var(--zoom, 1));
   position: relative;
   height: var(--h);
   aspect-ratio: 71.5 / 146.7;
@@ -123,7 +126,7 @@ body.is-live { --reserve: 60px; }
 }
 
 .iphone.is-landscape {
-  --h: clamp(380px, min(calc(100vw - 72px), calc((100dvh - 92px - var(--reserve, 0px)) * 146.7 / 71.5)), 1600px);
+  --fit: clamp(380px, min(calc(100vw - 72px), calc((100dvh - 92px - var(--reserve, 0px)) * 146.7 / 71.5)), 1600px);
   width: var(--h);
   height: auto;
   aspect-ratio: 146.7 / 71.5;
@@ -311,7 +314,7 @@ body.is-live { --reserve: 60px; }
 
 .view-tools {
   position: fixed;
-  right: var(--edge);
+  left: var(--edge);
   bottom: var(--edge);
   z-index: 20;
   display: flex;
@@ -323,13 +326,9 @@ body.is-live { --reserve: 60px; }
   border-radius: 14px;
   backdrop-filter: blur(16px);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
-  transition: right 0.25s ease;
 }
 
 .view-tools[hidden] { display: none; }
-
-/* Keep the toolbar on the visible canvas, beside the open drawer. */
-html:not(.drawer-closed) .view-tools { right: calc(var(--drawer-w) + var(--edge)); }
 
 .view-tools .ctl-icon {
   display: grid;
@@ -351,9 +350,6 @@ html:not(.drawer-closed) .view-tools { right: calc(var(--drawer-w) + var(--edge)
   margin: 0 2px;
   background: var(--line);
 }
-
-/* Toasts share the bottom-right corner with the toolbar while mirroring. */
-body.is-live #pane-toast { bottom: calc(var(--edge) + 60px); }
 
 /* ---------- Drawer ---------- */
 
@@ -396,8 +392,7 @@ html.drawer-closed .drawer {
   visibility: hidden;
 }
 
-html.drawer-init .drawer,
-html.drawer-init .view-tools { transition: none; }
+html.drawer-init .drawer { transition: none; }
 
 .drawer-scroll {
   height: 100%;

@@ -214,8 +214,7 @@ function renderPills(state) {
   }
 
   if (!connected) {
-    pillDevice.hidden = !overWifi;
-    pillDevice.textContent = "Wi‑Fi";
+    pillDevice.hidden = true;
     return;
   }
   pillDevice.hidden = false;
@@ -363,7 +362,7 @@ function renderScreen(screen) {
   kbToggle.hidden = true;
   viewTools.hidden = true;
   setOrientation(false);
-  setZoomLabel(1);
+  setZoom(1);
   screenView.hidden = true;
   screenView.src = "about:blank";
   showScreen.textContent = "Start mirroring";
@@ -510,16 +509,54 @@ const GESTURES = {
   search: { from: [32768, 22000], to: [32768, 44000], steps: 12, dt: 16 },
 };
 
-// Screenshot: hold Volume up and Home together, then let go of both.
-async function screenshot() {
-  await mirrorPost("/button", { name: "home", state: "down" });
-  await mirrorPost("/button", { name: "volume-up", state: "down" });
-  await sleep(150);
-  await mirrorPost("/button", { name: "volume-up", state: "up" });
-  await mirrorPost("/button", { name: "home", state: "up" });
+// Screenshot: save the mirrored picture to this PC (not to the iPhone's Photos).
+function screenshotName() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return `iPhone screenshot ${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} at ${p(d.getHours())}.${p(d.getMinutes())}.${p(d.getSeconds())}.png`;
 }
 
-const COMBOS = { screenshot };
+async function captureScreen() {
+  const canvas = screenView.hidden ? null : screenView.contentDocument?.getElementById("c");
+  if (!canvas || !canvas.width || !canvas.height) throw new Error("Start mirroring to take a screenshot.");
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+  if (!blob) throw new Error("The screen picture is not ready yet.");
+  return blob;
+}
+
+async function screenshot() {
+  let blob;
+  try {
+    // Capture first, so the picture is the moment of the click, not after the dialog.
+    blob = await captureScreen();
+  } catch (error) {
+    notify(error.message, "warn");
+    return;
+  }
+  const name = screenshotName();
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: name,
+        startIn: "pictures",
+        types: [{ description: "PNG image", accept: { "image/png": [".png"] } }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      notify(`Screenshot saved as ${handle.name}.`);
+    } catch (error) {
+      if (error.name !== "AbortError") notify(`Could not save the screenshot: ${error.message}`, "warn");
+    }
+    return;
+  }
+  // Browsers without a save dialog API: hand it to the download prompt.
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 10000);
+}
 
 // A swipe-up injected over USB is too slow for iOS to treat as the Home
 // gesture, so Home and the app switcher use the Home button instead.
@@ -562,14 +599,23 @@ function toggleFullscreen() {
   phoneScreen.requestFullscreen?.().catch(() => {});
 }
 
-// The mirror page reports its picture's shape and zoom so the frame can turn
-// sideways with the iPhone and the zoom button can show the real level.
+// The mirror page reports its picture's shape so the frame can turn sideways
+// with the iPhone.
 function setOrientation(landscape, turn = "ccw") {
   phoneShell.classList.toggle("is-landscape", landscape);
   phoneShell.dataset.turn = turn === "cw" ? "cw" : "ccw";
 }
 
-function setZoomLabel(zoom) {
+// Zoom scales the whole iPhone frame; the picture inside always fills it.
+const ZOOM_STEP = 1.2;
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 3;
+let zoom = 1;
+
+function setZoom(value) {
+  zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, value));
+  if (Math.abs(zoom - 1) < 0.02) zoom = 1;
+  phoneShell.style.setProperty("--zoom", String(zoom));
   zoomLevel.textContent = `${Math.round(zoom * 100)}%`;
 }
 
@@ -578,7 +624,6 @@ window.addEventListener("message", (event) => {
   const data = event.data;
   if (data?.type !== "pane-view") return;
   if (typeof data.landscape === "boolean") setOrientation(data.landscape, data.turn);
-  if (typeof data.zoom === "number") setZoomLabel(data.zoom);
 });
 
 window.handsetKeyboardOn = true;
@@ -828,15 +873,13 @@ function wireRemoteControls() {
       if (name) mirrorPost("/button", { name, state: "press" });
     });
   });
-  document.querySelectorAll("[data-combo]").forEach((btn) => {
-    btn.addEventListener("click", () => COMBOS[btn.dataset.combo]?.());
-  });
+  document.querySelector("#screenshot")?.addEventListener("click", screenshot);
   document.querySelectorAll("[data-swipe]").forEach((btn) => {
     btn.addEventListener("click", () => swipe(btn.dataset.swipe));
   });
-  document.querySelector("#zoom-in")?.addEventListener("click", () => mirrorMessage("zoom-in"));
-  document.querySelector("#zoom-out")?.addEventListener("click", () => mirrorMessage("zoom-out"));
-  document.querySelector("#zoom-reset")?.addEventListener("click", () => mirrorMessage("zoom-reset"));
+  document.querySelector("#zoom-in")?.addEventListener("click", () => setZoom(zoom * ZOOM_STEP));
+  document.querySelector("#zoom-out")?.addEventListener("click", () => setZoom(zoom / ZOOM_STEP));
+  document.querySelector("#zoom-reset")?.addEventListener("click", () => setZoom(1));
   document.querySelector("#rotate-cw")?.addEventListener("click", () => mirrorMessage("rotate", { deg: 90 }));
   document.querySelector("#rotate-ccw")?.addEventListener("click", () => mirrorMessage("rotate", { deg: -90 }));
 }

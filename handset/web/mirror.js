@@ -3,10 +3,6 @@ const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
 
 let visualRotation = 0;
-let zoom = 1;
-const ZOOM_STEP = 1.2;
-const ZOOM_MIN = 0.5;
-const ZOOM_MAX = 3;
 
 let pendingFrame = null;
 let rafScheduled = false;
@@ -26,8 +22,8 @@ function setStatus(text, tone, category = "stream") {
   }
 }
 
-// Tell the Pane window how the picture is shaped and zoomed, so the iPhone
-// frame turns sideways with it and the zoom button shows the real level.
+// Tell the Pane window how the picture is shaped, so the iPhone frame turns
+// sideways with it.
 let lastView = "";
 let pictureSized = false;
 function postView() {
@@ -35,10 +31,10 @@ function postView() {
   // Before the first frame the canvas has its default 300x150 size: no shape yet.
   const landscape = pictureSized ? canvas.width > canvas.height : undefined;
   const turn = ((visualRotation % 360) + 360) % 360 === 90 ? "cw" : "ccw";
-  const key = `${landscape}|${turn}|${zoom}`;
+  const key = `${landscape}|${turn}`;
   if (key === lastView) return;
   lastView = key;
-  window.parent.postMessage({ type: "pane-view", landscape, turn, zoom }, location.origin);
+  window.parent.postMessage({ type: "pane-view", landscape, turn }, location.origin);
 }
 
 function fitCanvas() {
@@ -49,20 +45,13 @@ function fitCanvas() {
   const naturalW = canvas.width;
   const naturalH = canvas.height;
   const base = Math.min(rect.width / naturalW, rect.height / naturalH);
-  const scale = base * zoom;
+  const scale = base;
   canvas.style.width = `${naturalW * scale}px`;
   canvas.style.height = `${naturalH * scale}px`;
   postView();
 }
 
 window.addEventListener("resize", fitCanvas);
-
-function setZoom(value) {
-  zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, value));
-  if (Math.abs(zoom - 1) < 0.02) zoom = 1;
-  fitCanvas();
-  postView();
-}
 
 function touchCoords(e) {
   const rect = canvas.getBoundingClientRect();
@@ -249,12 +238,6 @@ window.addEventListener("message", (e) => {
     visualRotation = (visualRotation + (d.deg || 0)) % 360;
     if (lastFrame) drawFrame(lastFrame);
     fitCanvas();
-  } else if (d.cmd === "zoom-in") {
-    setZoom(zoom * ZOOM_STEP);
-  } else if (d.cmd === "zoom-out") {
-    setZoom(zoom / ZOOM_STEP);
-  } else if (d.cmd === "zoom-reset") {
-    setZoom(1);
   } else if (d.cmd === "reload") {
     beginRun();
   }
