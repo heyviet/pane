@@ -9,238 +9,206 @@
   <link rel="stylesheet" href="/app.css">
   <link rel="stylesheet" href="/files.css">
   <link rel="stylesheet" href="/toast.css">
+  <script>
+    // Apply the remembered drawer state before first paint so it doesn't slide on load.
+    try {
+      if (localStorage.getItem("pane-sidebar") === "closed") document.documentElement.classList.add("drawer-closed");
+    } catch (_) {}
+  </script>
 </head>
 <body>
-  <div class="app">
-    <header class="bar">
-      <div class="brand">
-        <img class="brand-mark" src="/logo.svg" alt="" aria-hidden="true">
-        <div>
-          <p class="brand-name">Pane</p>
-          <p class="brand-tag">Your iPhone, on Windows</p>
-        </div>
+  <main class="workspace" id="workspace">
+    <section class="mirror-pane" aria-label="iPhone screen">
+      <div class="stage-meta">
+        <span class="pill" id="pill-connection">Checking…</span>
+        <span class="pill pill-muted" id="pill-device" hidden>No iPhone</span>
       </div>
-      <nav class="bar-actions">
-        <button type="button" class="ghost" id="toggle-guide" aria-expanded="false" aria-controls="run-guide">How to run</button>
-        <button type="button" class="ghost" id="refresh" title="Refresh connection">Refresh</button>
-      </nav>
-    </header>
 
-    <main class="workspace" id="workspace">
-      <div class="mirror-split">
-        <section class="mirror-pane" aria-label="iPhone screen">
-          <div class="stage-meta">
-            <span class="pill" id="pill-connection">Checking…</span>
-            <span class="pill pill-muted" id="pill-device" hidden>No iPhone</span>
-          </div>
+      <div class="iphone" id="phone-shell" data-turn="ccw">
+        <button type="button" class="iphone-key key-action" data-btn="mute" title="Action / Mute" aria-label="Mute"></button>
+        <button type="button" class="iphone-key key-volup" data-btn="volume-up" title="Volume up" aria-label="Volume up"></button>
+        <button type="button" class="iphone-key key-voldown" data-btn="volume-down" title="Volume down" aria-label="Volume down"></button>
+        <button type="button" class="iphone-key key-side" data-btn="lock" title="Side button (lock)" aria-label="Side button"></button>
 
-          <div class="iphone" id="phone-shell">
-            <button type="button" class="iphone-key key-action" data-btn="mute" title="Action / Mute" aria-label="Mute"></button>
-            <button type="button" class="iphone-key key-volup" data-btn="volume-up" title="Volume up" aria-label="Volume up"></button>
-            <button type="button" class="iphone-key key-voldown" data-btn="volume-down" title="Volume down" aria-label="Volume down"></button>
-            <button type="button" class="iphone-key key-side" data-btn="lock" title="Side button (lock)" aria-label="Side button"></button>
-
-            <div class="iphone-rim">
-              <div class="iphone-bezel">
-                <div class="iphone-screen" id="phone-screen">
-                  <div class="placeholder" id="placeholder">
-                    <div class="placeholder-icon" aria-hidden="true">
-                      <svg viewBox="0 0 48 48" width="48" height="48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <rect x="12" y="4" width="24" height="40" rx="4" stroke="currentColor" stroke-width="2"/>
-                        <circle cx="24" cy="38" r="2" fill="currentColor"/>
-                      </svg>
-                    </div>
-                    <p class="placeholder-title">Ready to mirror</p>
-                    <p class="placeholder-hint" id="placeholder-hint">Connect your iPhone, then press Start mirroring.</p>
-                  </div>
-                  <iframe id="screen-view" class="screen-frame" title="iPhone screen" allow="clipboard-read; clipboard-write" hidden src="about:blank"></iframe>
-                  <div class="iphone-notch" aria-hidden="true"><span class="notch-cam"></span></div>
-                  <button type="button" class="fs-exit" id="fs-exit" title="Exit full screen (Esc)">Exit full screen</button>
+        <div class="iphone-rim">
+          <div class="iphone-bezel">
+            <div class="iphone-screen" id="phone-screen">
+              <div class="placeholder" id="placeholder">
+                <div class="placeholder-icon" aria-hidden="true">
+                  <svg viewBox="0 0 48 48" width="48" height="48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="12" y="4" width="24" height="40" rx="4" stroke="currentColor" stroke-width="2"/>
+                    <circle cx="24" cy="38" r="2" fill="currentColor"/>
+                  </svg>
                 </div>
+                <p class="placeholder-title">Ready to mirror</p>
+                <p class="placeholder-hint" id="placeholder-hint">Connect your iPhone, then press Start mirroring.</p>
               </div>
+              <iframe id="screen-view" class="screen-frame" title="iPhone screen" allow="clipboard-read; clipboard-write" hidden src="about:blank"></iframe>
+              <div class="iphone-notch" aria-hidden="true"><span class="notch-cam"></span></div>
+              <button type="button" class="fs-exit" id="fs-exit" title="Exit full screen (Esc)">Exit full screen</button>
             </div>
           </div>
-
-          <p class="stage-note" id="screen-note" role="status"></p>
-        </section>
-
-        <aside class="control-pane" aria-label="Device and controls">
-          <section class="card panel-start">
-            <div class="segmented" role="radiogroup" aria-label="Connection">
-              <button type="button" class="seg is-active" data-transport="usb" role="radio" aria-checked="true">Cable</button>
-              <button type="button" class="seg" data-transport="wifi" role="radio" aria-checked="false">Wi‑Fi</button>
-            </div>
-            <div class="wifi-row" id="wifi-row">
-              <span class="wifi-state" id="wifi-state">Wi‑Fi not set up</span>
-              <button type="button" class="ctl ctl-sm" id="wifi-pair">Set up Wi‑Fi</button>
-            </div>
-            <button type="button" class="primary primary-block" id="show-screen">Start mirroring</button>
-            <button type="button" class="ghost ghost-block" id="restart-screen" hidden>Restart screen</button>
-            <button type="button" class="ghost ghost-block kb-toggle" id="kb-toggle" aria-pressed="true" hidden>⌨ Keyboard → iPhone: On</button>
-            <p class="control-hint" id="control-hint">Drag up from the bottom edge for Home; pause before letting go for the app switcher. While mirroring, typing goes straight to the iPhone.</p>
-          </section>
-
-          <section class="card panel-remote" id="remote-panel" hidden>
-            <h2 class="card-title">Gestures</h2>
-            <div class="control-grid">
-              <button type="button" class="ctl ctl-accent" data-gesture="home" title="Go to the Home Screen">Home</button>
-              <button type="button" class="ctl" data-gesture="switcher" title="Show recent apps">App switcher</button>
-              <button type="button" class="ctl" data-gesture="notifications" title="Swipe down from the top left">Notifications</button>
-              <button type="button" class="ctl" data-gesture="control" title="Swipe down from the top right">Control Center</button>
-              <button type="button" class="ctl" data-swipe="left" title="Swipe from right edge">← Swipe</button>
-              <button type="button" class="ctl" data-swipe="right" title="Swipe from left edge">Swipe →</button>
-            </div>
-
-            <h2 class="card-title card-title-gap">Buttons</h2>
-            <div class="control-row">
-              <button type="button" class="ctl ctl-sm" data-btn="home">Home</button>
-              <button type="button" class="ctl ctl-sm" data-btn="siri">Siri</button>
-              <button type="button" class="ctl ctl-sm" data-btn="lock">Lock</button>
-              <button type="button" class="ctl ctl-sm" data-btn="mute">Mute</button>
-            </div>
-            <div class="control-row control-row-2">
-              <button type="button" class="ctl ctl-sm" data-btn="volume-up">Vol +</button>
-              <button type="button" class="ctl ctl-sm" data-btn="volume-down">Vol −</button>
-            </div>
-
-            <h2 class="card-title card-title-gap">Clipboard</h2>
-            <button type="button" class="ctl ctl-full" id="clipboard-sync" aria-pressed="false">Sync iPhone → PC: Off</button>
-            <p class="fine" id="clipboard-sync-note" role="status" aria-live="polite">Enable to use iOS’s native Copy with PC apps.</p>
-            <div class="control-row clipboard-row">
-              <button type="button" class="ctl ctl-sm" data-clipboard="paste">Paste PC clipboard</button>
-              <button type="button" class="ctl ctl-sm" data-clipboard="copy">Copy selection to PC</button>
-            </div>
-            <div class="control-row clipboard-row">
-              <button type="button" class="ctl ctl-sm" data-clipboard="get">Get iPhone clipboard</button>
-              <button type="button" class="ctl ctl-sm" data-clipboard="paste-device">Paste iPhone clipboard</button>
-            </div>
-            <div class="control-row clipboard-row">
-              <button type="button" class="ctl ctl-sm" data-clipboard="send">Send PC clipboard</button>
-              <button type="button" class="ctl ctl-sm" id="pick-video-open">Pick iPhone video…</button>
-            </div>
-            <p class="fine">Ctrl+C copies selected iPhone content to PC; Ctrl+V pastes PC content. To use iOS’s own Paste menu, click Send PC clipboard, then hold the left mouse button on the text field. Native Copy updates PC automatically when sync is on.</p>
-            <p class="fine">Videos: copy one MP4, MOV or M4V file on PC, then paste into an iPhone app that accepts videos. Direct clips are limited to 32 MB. Videos copied to PC can be pasted into Explorer or apps that accept video files.</p>
-
-            <div class="view-tools">
-              <span class="view-label">View</span>
-              <div class="zoom-cluster">
-                <button type="button" class="ctl ctl-icon" id="zoom-out" title="Zoom out">−</button>
-                <button type="button" class="ctl ctl-icon" id="zoom-reset" title="Fit">100%</button>
-                <button type="button" class="ctl ctl-icon" id="zoom-in" title="Zoom in">+</button>
-              </div>
-              <div class="rotate-cluster">
-                <button type="button" class="ctl ctl-icon" id="rotate-ccw" title="Rotate counter-clockwise">↺</button>
-                <button type="button" class="ctl ctl-icon" id="rotate-cw" title="Rotate clockwise">↻</button>
-              </div>
-              <button type="button" class="ctl ctl-full" id="fullscreen" title="Full screen touch view (Esc to exit)">⛶ Full screen</button>
-            </div>
-          </section>
-
-          <section class="card file-transfer" id="files-panel" data-files-mode="desktop" aria-labelledby="files-title">
-            <div class="files-heading"><h2 class="card-title" id="files-title">Files</h2><span id="files-connection">Sharing off</span></div>
-            <p class="files-intro">Send files to your iPhone or receive them on this PC over Wi-Fi.</p>
-            <button type="button" class="ctl" id="files-toggle">Start file sharing</button>
-            <div id="files-pairing" hidden>
-              <p class="files-intro">Camera unavailable while mirroring? Open this address in Safari on your iPhone:</p>
-              <p class="files-manual-address" id="files-manual-address"></p>
-              <p class="files-label">Then enter this pairing code:</p>
-              <p class="files-code" id="files-code"></p>
-              <p class="files-intro">Scan with your iPhone camera and open in Safari. Keep both devices on the same Wi-Fi.</p>
-              <img id="files-qr" class="files-qr" alt="Scan to pair your iPhone for file transfers" width="180" height="180" hidden>
-              <label class="files-label" for="files-address">PC network address</label>
-              <select id="files-address"></select>
-              <label class="files-label" for="files-link">Or open this link on your iPhone</label>
-              <input id="files-link" type="text" readonly>
-              <button type="button" class="ctl" id="files-copy">Copy pairing link</button>
-              <p class="files-help">If Safari cannot connect, allow Python on your trusted Wi-Fi in Windows Firewall. Transfers use your local network; use Wi-Fi you trust.</p>
-            </div>
-            <div id="files-content" hidden>
-              <div class="files-drop" id="files-drop">
-                <p>Drop files here to send to iPhone</p>
-                <button class="ctl" type="button" id="files-choose">Choose files</button>
-                <input id="files-input" type="file" multiple hidden>
-                <span class="files-help">Up to 1 GB per file. Save each file from Safari on your iPhone.</span>
-              </div>
-              <div id="files-progress-wrap" hidden>
-                <label for="files-progress" id="files-progress-label">Sending…</label>
-                <progress id="files-progress" max="100" value="0"></progress>
-                <button type="button" class="ctl" id="files-cancel">Cancel upload</button>
-              </div>
-              <h3 class="files-subtitle">Ready for iPhone</h3><ul id="files-outgoing" class="files-list"></ul>
-              <h3 class="files-subtitle">Received on PC</h3><ul id="files-incoming" class="files-list"></ul>
-              <p class="files-help" id="files-folder"></p>
-            </div>
-            <p id="files-message" class="files-message" role="status" aria-live="polite"></p>
-          </section>
-
-          <section class="card" id="device-card">
-            <h2 class="card-title">Device</h2>
-            <ul class="device-list" id="devices"></ul>
-            <div class="device-detail" id="detail" hidden></div>
-          </section>
-
-          <details class="card card-details">
-            <summary>Connection details</summary>
-            <dl class="kv" id="status"></dl>
-            <p class="fine" id="status-note"></p>
-          </details>
-        </aside>
-      </div>
-    </main>
-
-    <section class="guide" id="run-guide" hidden>
-      <div class="guide-inner">
-        <h2>How to run Pane</h2>
-        <p class="guide-lead">Open-source mirroring for Windows. Everything runs on your PC; the phone stays on USB.</p>
-
-        <div class="guide-grid">
-          <article class="guide-step">
-            <span class="step-num">1</span>
-            <h3>Prerequisites</h3>
-            <ul>
-              <li>Windows 10 or 11</li>
-              <li>Python 3.10+</li>
-              <li><a href="https://apps.microsoft.com/store/detail/apple-devices/9np83t1wptph" rel="noopener">Apple Devices</a> from Microsoft Store</li>
-              <li>USB‑C data cable (not charge‑only)</li>
-            </ul>
-          </article>
-
-          <article class="guide-step">
-            <span class="step-num">2</span>
-            <h3>Install</h3>
-            <pre class="code"><code>git clone &lt;your-repo-url&gt;
-cd handset
-pip install pymobiledevice3</code></pre>
-            <p class="fine">On Windows, if <code>pip install pymobiledevice3</code> fails on native wheels, install the package without optional firmware tools, then run from this repo (it includes small shims).</p>
-          </article>
-
-          <article class="guide-step">
-            <span class="step-num">3</span>
-            <h3>Start the server</h3>
-            <pre class="code"><code>python -m handset.server</code></pre>
-            <p class="fine">Open <a href="http://127.0.0.1:8765">http://127.0.0.1:8765</a> in your browser. Keep the terminal open.</p>
-          </article>
-
-          <article class="guide-step">
-            <span class="step-num">4</span>
-            <h3>iPhone setup</h3>
-            <ul>
-              <li>Plug in and unlock the iPhone</li>
-              <li>Tap <strong>Trust</strong> on the phone</li>
-              <li>Enable <strong>Settings → Privacy &amp; Security → Developer Mode</strong> and restart</li>
-              <li>Press <strong>Start mirroring</strong> here (first run may mount a developer image; keep the phone unlocked)</li>
-            </ul>
-          </article>
         </div>
-
-        <p class="guide-footer fine">Pane uses the same display tunnel as Xcode Device Hub, over USB or Wi‑Fi. It does not run iOS on Windows—it streams and controls your physical iPhone.</p>
       </div>
     </section>
 
-    <footer class="foot">
-      <p>Pane · MIT · Mirror and control your iPhone over USB or Wi‑Fi</p>
-    </footer>
-  </div>
+    <div class="view-tools" id="view-tools" role="toolbar" aria-label="View" hidden>
+      <button type="button" class="ctl ctl-icon" id="zoom-out" title="Zoom out" aria-label="Zoom out">−</button>
+      <button type="button" class="ctl ctl-icon zoom-level" id="zoom-reset" title="Reset zoom (fit)">100%</button>
+      <button type="button" class="ctl ctl-icon" id="zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+      <span class="view-sep" aria-hidden="true"></span>
+      <button type="button" class="ctl ctl-icon" id="rotate-ccw" title="Rotate counter-clockwise" aria-label="Rotate counter-clockwise">↺</button>
+      <button type="button" class="ctl ctl-icon" id="rotate-cw" title="Rotate clockwise" aria-label="Rotate clockwise">↻</button>
+      <span class="view-sep" aria-hidden="true"></span>
+      <button type="button" class="ctl ctl-icon" id="fullscreen" title="Full screen touch view (Esc to exit)" aria-label="Full screen">
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </main>
+
+  <button type="button" class="drawer-toggle" id="drawer-toggle" aria-controls="drawer" aria-expanded="true" title="Toggle sidebar">
+    <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
+      <rect x="2.5" y="3.5" width="15" height="13" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      <path d="M12.5 3.5v13" stroke="currentColor" stroke-width="1.5"/>
+    </svg>
+  </button>
+
+  <aside class="drawer" id="drawer" aria-label="Device and controls">
+    <div class="drawer-scroll">
+      <details class="card section" data-section="connection" open>
+        <summary>
+          <h2 class="card-title">Connection</h2>
+          <span class="help" tabindex="0" role="note" data-tip="Choose Cable or Wi‑Fi, then press Start mirroring. Drag up from the bottom edge of the screen for Home; pause before letting go for the app switcher. While mirroring, typing goes straight to the iPhone.">?</span>
+          <button type="button" class="ctl ctl-icon summary-action" id="refresh" title="Refresh connection" aria-label="Refresh connection">
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </summary>
+        <div class="section-body">
+          <div class="segmented" role="radiogroup" aria-label="Connection">
+            <button type="button" class="seg is-active" data-transport="usb" role="radio" aria-checked="true">Cable</button>
+            <button type="button" class="seg" data-transport="wifi" role="radio" aria-checked="false">Wi‑Fi</button>
+          </div>
+          <div class="wifi-row" id="wifi-row">
+            <span class="wifi-state" id="wifi-state">Wi‑Fi not set up</span>
+            <button type="button" class="ctl ctl-sm" id="wifi-pair">Set up Wi‑Fi</button>
+          </div>
+          <button type="button" class="primary primary-block" id="show-screen">Start mirroring</button>
+          <button type="button" class="ghost ghost-block" id="restart-screen" hidden>Restart screen</button>
+          <button type="button" class="ghost ghost-block kb-toggle" id="kb-toggle" aria-pressed="true" hidden>⌨ Keyboard → iPhone: On</button>
+        </div>
+      </details>
+
+      <details class="card section" data-section="controls" id="remote-panel" open hidden>
+        <summary>
+          <h2 class="card-title">Controls</h2>
+          <span class="help" tabindex="0" role="note" data-tip="Gestures, hardware buttons and clipboard for the mirrored iPhone. Available while mirroring.">?</span>
+        </summary>
+        <div class="section-body">
+          <h3 class="sub-title">Gestures</h3>
+          <div class="control-grid">
+            <button type="button" class="ctl ctl-accent" data-gesture="home" title="Go to the Home Screen">Home</button>
+            <button type="button" class="ctl" data-gesture="switcher" title="Show recent apps">App switcher</button>
+            <button type="button" class="ctl" data-gesture="notifications" title="Swipe down from the top left">Notifications</button>
+            <button type="button" class="ctl" data-gesture="control" title="Swipe down from the top right">Control Center</button>
+            <button type="button" class="ctl" data-swipe="left" title="Swipe from right edge">← Swipe</button>
+            <button type="button" class="ctl" data-swipe="right" title="Swipe from left edge">Swipe →</button>
+          </div>
+
+          <h3 class="sub-title">Buttons</h3>
+          <div class="control-row">
+            <button type="button" class="ctl ctl-sm" data-btn="home">Home</button>
+            <button type="button" class="ctl ctl-sm" data-btn="siri">Siri</button>
+            <button type="button" class="ctl ctl-sm" data-btn="lock">Lock</button>
+            <button type="button" class="ctl ctl-sm" data-btn="mute">Mute</button>
+          </div>
+          <div class="control-row">
+            <button type="button" class="ctl ctl-sm" data-btn="volume-up">Vol +</button>
+            <button type="button" class="ctl ctl-sm" data-btn="volume-down">Vol −</button>
+            <button type="button" class="ctl ctl-sm" data-combo="screenshot" title="Press Volume up + Home together">Screenshot</button>
+            <button type="button" class="ctl ctl-sm" data-gesture="search" title="Swipe down from the middle of the Home Screen">Search</button>
+          </div>
+
+          <h3 class="sub-title">Clipboard
+            <span class="help" tabindex="0" role="note" data-tip="Ctrl+C copies selected iPhone content to PC; Ctrl+V pastes PC content. To use iOS’s own Paste menu, click Send PC clipboard, then hold the left mouse button on the text field. Native Copy updates PC automatically when sync is on. Videos: copy one MP4, MOV or M4V file on PC, then paste into an iPhone app that accepts videos (direct clips up to 32 MB). Videos copied to PC can be pasted into Explorer or apps that accept video files.">?</span>
+          </h3>
+          <button type="button" class="ctl ctl-full" id="clipboard-sync" aria-pressed="false">Sync iPhone → PC: Off</button>
+          <p class="fine" id="clipboard-sync-note" role="status" aria-live="polite"></p>
+          <div class="control-row clipboard-row">
+            <button type="button" class="ctl ctl-sm" data-clipboard="paste">Paste PC clipboard</button>
+            <button type="button" class="ctl ctl-sm" data-clipboard="copy">Copy selection to PC</button>
+          </div>
+          <div class="control-row clipboard-row">
+            <button type="button" class="ctl ctl-sm" data-clipboard="get">Get iPhone clipboard</button>
+            <button type="button" class="ctl ctl-sm" data-clipboard="paste-device">Paste iPhone clipboard</button>
+          </div>
+          <div class="control-row clipboard-row">
+            <button type="button" class="ctl ctl-sm" data-clipboard="send">Send PC clipboard</button>
+            <button type="button" class="ctl ctl-sm" id="pick-video-open">Pick iPhone video…</button>
+          </div>
+        </div>
+      </details>
+
+      <details class="card section file-transfer" data-section="files" id="files-panel" data-files-mode="desktop" open>
+        <summary>
+          <h2 class="card-title" id="files-title">Files</h2>
+          <span class="help" tabindex="0" role="note" data-tip="Send files to your iPhone or receive them on this PC over Wi‑Fi. Pair by scanning the QR code with the iPhone camera, or open the address in Safari and enter the code. Keep both devices on the same Wi‑Fi. If Safari cannot connect, allow Pane on your trusted network in Windows Firewall. Up to 1 GB per file; save each file from Safari on the iPhone.">?</span>
+          <span id="files-connection">Sharing off</span>
+        </summary>
+        <div class="section-body">
+          <button type="button" class="ctl" id="files-toggle">Start file sharing</button>
+          <div id="files-pairing" hidden>
+            <p class="files-label">Open in Safari on your iPhone</p>
+            <p class="files-manual-address" id="files-manual-address"></p>
+            <p class="files-label">Pairing code</p>
+            <p class="files-code" id="files-code"></p>
+            <img id="files-qr" class="files-qr" alt="Scan to pair your iPhone for file transfers" width="180" height="180" hidden>
+            <label class="files-label" for="files-address">PC network address</label>
+            <select id="files-address"></select>
+            <label class="files-label" for="files-link">Pairing link</label>
+            <input id="files-link" type="text" readonly>
+            <button type="button" class="ctl" id="files-copy">Copy pairing link</button>
+          </div>
+          <div id="files-content" hidden>
+            <div class="files-drop" id="files-drop">
+              <p>Drop files here to send to iPhone</p>
+              <button class="ctl" type="button" id="files-choose">Choose files</button>
+              <input id="files-input" type="file" multiple hidden>
+            </div>
+            <div id="files-progress-wrap" hidden>
+              <label for="files-progress" id="files-progress-label">Sending…</label>
+              <progress id="files-progress" max="100" value="0"></progress>
+              <button type="button" class="ctl" id="files-cancel">Cancel upload</button>
+            </div>
+            <h3 class="files-subtitle">Ready for iPhone</h3><ul id="files-outgoing" class="files-list"></ul>
+            <h3 class="files-subtitle">Received on PC</h3><ul id="files-incoming" class="files-list"></ul>
+            <p class="files-help" id="files-folder"></p>
+          </div>
+          <p id="files-message" class="files-message" role="status" aria-live="polite"></p>
+        </div>
+      </details>
+
+      <details class="card section" data-section="device" id="device-card" open>
+        <summary>
+          <h2 class="card-title">Device</h2>
+        </summary>
+        <div class="section-body">
+          <ul class="device-list" id="devices"></ul>
+          <div class="device-detail" id="detail" hidden></div>
+        </div>
+      </details>
+
+      <details class="card section" data-section="details">
+        <summary>
+          <h2 class="card-title">Connection details</h2>
+        </summary>
+        <div class="section-body">
+          <dl class="kv" id="status"></dl>
+          <p class="fine" id="status-note"></p>
+        </div>
+      </details>
+    </div>
+  </aside>
+
   <dialog id="video-picker" class="video-picker" aria-labelledby="video-picker-title">
     <form method="dialog" class="video-picker-head">
       <div>

@@ -35,8 +35,8 @@ It is an alternative to paid tools such as ApowerMirror, LonelyScreen, Reflector
 - 📁 **Paired file sharing over Wi-Fi**: drag-and-drop, Safari companion, QR or camera-free code pairing, progress and cancellation.
 - 📶 **Wireless mirroring over Wi-Fi**: pair once over USB, then go cable-free on the same network.
 - 🔌 **USB cable mode**: the most stable, lowest-latency connection.
-- 🏠 **Hardware buttons & gestures**: Home, App Switcher, Lock/Power, Siri, Volume up/down, Mute, Notification Center, Control Center, back/forward swipes.
-- 🖥️ **Realistic iPhone frame** with fit-to-window, zoom, rotate and **full-screen touch mode**.
+- 🏠 **Hardware buttons & gestures**: Home, App Switcher, Lock/Power, Siri, Volume up/down, Mute, Screenshot, Search, Notification Center, Control Center, back/forward swipes.
+- 🖥️ **Realistic iPhone frame** that turns sideways with the phone, with fit-to-window, zoom, rotate and **full-screen touch mode**.
 - 🔁 **One-click restart** if the stream ever freezes.
 - 🪟 **Single portable `Pane.exe`**: no Python, no installer, no account.
 - 🔒 **Private by design**: no cloud, no telemetry; it only talks to your iPhone.

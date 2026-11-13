@@ -1,13 +1,13 @@
 .file-transfer { min-width: 0; }
-.control-pane:has(.file-transfer) { position: static; }
 .file-transfer { scroll-margin-top: 96px; }
-.files-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-.files-heading h2 { margin-bottom: 0; }
 #files-connection { color: var(--muted); font-size: 12px; }
+.file-transfer > summary #files-connection { margin-left: 4px; }
+#files-toggle { width: 100%; }
 #files-connection.connected { color: var(--ok); }
 .files-intro { color: var(--muted); font-size: 14px; line-height: 1.55; margin: 12px 0; }
 .files-help { display: block; color: var(--muted); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
 .files-label { display: block; color: var(--muted); font-size: 12px; margin: 14px 0 6px; }
+p.files-label { margin-bottom: 2px; }
 .files-manual-address { font-size: 16px; overflow-wrap: anywhere; user-select: all; }
 .files-code { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: 0.12em; margin: 6px 0 20px; user-select: all; }
 #files-pair-form { margin: 24px 0; }

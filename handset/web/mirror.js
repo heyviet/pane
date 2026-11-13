@@ -26,6 +26,21 @@ function setStatus(text, tone, category = "stream") {
   }
 }
 
+// Tell the Pane window how the picture is shaped and zoomed, so the iPhone
+// frame turns sideways with it and the zoom button shows the real level.
+let lastView = "";
+let pictureSized = false;
+function postView() {
+  if (!window.parent || window.parent === window) return;
+  // Before the first frame the canvas has its default 300x150 size: no shape yet.
+  const landscape = pictureSized ? canvas.width > canvas.height : undefined;
+  const turn = ((visualRotation % 360) + 360) % 360 === 90 ? "cw" : "ccw";
+  const key = `${landscape}|${turn}|${zoom}`;
+  if (key === lastView) return;
+  lastView = key;
+  window.parent.postMessage({ type: "pane-view", landscape, turn, zoom }, location.origin);
+}
+
 function fitCanvas() {
   if (!canvas.width || !canvas.height) return;
   const parent = canvas.parentElement;
@@ -37,6 +52,7 @@ function fitCanvas() {
   const scale = base * zoom;
   canvas.style.width = `${naturalW * scale}px`;
   canvas.style.height = `${naturalH * scale}px`;
+  postView();
 }
 
 window.addEventListener("resize", fitCanvas);
@@ -45,6 +61,7 @@ function setZoom(value) {
   zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, value));
   if (Math.abs(zoom - 1) < 0.02) zoom = 1;
   fitCanvas();
+  postView();
 }
 
 function touchCoords(e) {
@@ -274,9 +291,10 @@ function drawFrame(f) {
   const fh = f.displayHeight;
   const targetW = sideways ? fh : fw;
   const targetH = sideways ? fw : fh;
-  if (targetW !== canvas.width || targetH !== canvas.height) {
+  if (targetW !== canvas.width || targetH !== canvas.height || !pictureSized) {
     canvas.width = targetW;
     canvas.height = targetH;
+    pictureSized = true;
     fitCanvas();
   }
   const dstW = canvas.width;
@@ -493,6 +511,8 @@ function beginRun() {
     lastFrame = null;
   }
   frameCount = 0;
+  lastView = "";
+  postView();
   run(generation).catch((err) => {
     setStatus(err.message || "Mirror failed", "warn");
   });

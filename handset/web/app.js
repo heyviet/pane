@@ -3,15 +3,12 @@ const statusNote = document.querySelector("#status-note");
 const devicesEl = document.querySelector("#devices");
 const detail = document.querySelector("#detail");
 const refresh = document.querySelector("#refresh");
-const screenNote = document.querySelector("#screen-note");
 const showScreen = document.querySelector("#show-screen");
 const screenView = document.querySelector("#screen-view");
 const phoneShell = document.querySelector("#phone-shell");
 const placeholderHint = document.querySelector("#placeholder-hint");
 const pillConnection = document.querySelector("#pill-connection");
 const pillDevice = document.querySelector("#pill-device");
-const toggleGuide = document.querySelector("#toggle-guide");
-const runGuide = document.querySelector("#run-guide");
 const workspace = document.querySelector("#workspace");
 const remotePanel = document.querySelector("#remote-panel");
 const restartScreen = document.querySelector("#restart-screen");
@@ -19,6 +16,9 @@ const phoneScreen = document.querySelector("#phone-screen");
 const kbToggle = document.querySelector("#kb-toggle");
 const wifiState = document.querySelector("#wifi-state");
 const wifiPair = document.querySelector("#wifi-pair");
+const viewTools = document.querySelector("#view-tools");
+const zoomLevel = document.querySelector("#zoom-reset");
+const drawerToggle = document.querySelector("#drawer-toggle");
 const MIRROR_PAGE = "/mirror.html";
 const MIRROR_API = "/mirror";
 
@@ -27,6 +27,24 @@ let screenTimer = 0;
 let transport = localStorage.getItem("handset-transport") === "wifi" ? "wifi" : "usb";
 let wifiPaired = [];
 let usbConnected = false;
+let statusSignature = "";
+let lastScreenMessage = "";
+
+// Notes about the stream go to a toast instead of a line under the phone.
+function notify(text, tone = "") {
+  if (text) window.PaneToast.show(text, tone, "screen");
+}
+
+// Only toast a stream message when it changes: renderScreen runs every second
+// while a stream starts, and a dismissed toast should stay dismissed.
+function notifyScreen(text, tone = "") {
+  if (text === lastScreenMessage) return;
+  lastScreenMessage = text;
+  if (text) notify(text, tone);
+  else window.PaneToast.clear("screen");
+}
+
+wireDrawer();
 
 document.querySelectorAll("[data-transport]").forEach((btn) => {
   btn.addEventListener("click", () => setTransport(btn.dataset.transport));
@@ -60,28 +78,93 @@ async function setUpWifi() {
   try {
     const result = await postJson("/api/wifi/pair", { udid: selectedUdid });
     if (!result.ok) throw new Error(result.error || "Wi‑Fi setup failed.");
-    screenNote.textContent = "Wi‑Fi is set up. You can unplug the cable and choose Wi‑Fi.";
-    screenNote.className = "";
+    notify("Wi‑Fi is set up. You can unplug the cable and choose Wi‑Fi.");
   } catch (error) {
-    screenNote.textContent = error.message;
-    screenNote.className = "warn";
+    notify(error.message, "warn");
   } finally {
     wifiPair.textContent = "Set up Wi‑Fi";
     load();
   }
 }
 
-refresh.addEventListener("click", () => load());
+refresh.addEventListener("click", (event) => {
+  // The button sits in the section's <summary>; don't collapse the section.
+  event.preventDefault();
+  event.stopPropagation();
+  refreshConnection();
+});
 showScreen.addEventListener("click", () => showPhone());
 restartScreen.addEventListener("click", () => restartMirror());
 wireRemoteControls();
 
-toggleGuide.addEventListener("click", () => {
-  const open = runGuide.hidden;
-  runGuide.hidden = !open;
-  toggleGuide.setAttribute("aria-expanded", String(open));
-  if (open) runGuide.scrollIntoView({ behavior: "smooth", block: "start" });
-});
+function wireDrawer() {
+  const root = document.documentElement;
+  const sync = () => drawerToggle.setAttribute("aria-expanded", String(!root.classList.contains("drawer-closed")));
+  // The remembered state was applied in <head>; skip the slide-in on load.
+  root.classList.add("drawer-init");
+  requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove("drawer-init")));
+  sync();
+  // Only this button closes the drawer: clicks elsewhere leave it open.
+  drawerToggle.addEventListener("click", () => {
+    const closed = root.classList.toggle("drawer-closed");
+    try { localStorage.setItem("pane-sidebar", closed ? "closed" : "open"); } catch (_) {}
+    sync();
+  });
+
+  let sections = {};
+  try { sections = JSON.parse(localStorage.getItem("pane-sections") || "{}") || {}; } catch (_) {}
+  document.querySelectorAll("details.section[data-section]").forEach((section) => {
+    const key = section.dataset.section;
+    if (typeof sections[key] === "boolean") section.open = sections[key];
+    section.addEventListener("toggle", () => {
+      sections[key] = section.open;
+      try { localStorage.setItem("pane-sections", JSON.stringify(sections)); } catch (_) {}
+    });
+  });
+  // A ? inside a section label explains it; clicking it must not collapse the section.
+  document.querySelectorAll(".help").forEach((help) => {
+    help.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      help.focus();
+    });
+  });
+}
+
+async function refreshConnection() {
+  refresh.classList.add("is-busy");
+  try {
+    const state = await load();
+    if (!state) return;
+    if (workspace.classList.contains("is-live")) {
+      // Reconnect the viewer to the running stream; it asks for a fresh keyframe.
+      reloadMirrorIframe();
+      notify("Connection refreshed. Reconnecting to the iPhone screen…");
+    } else {
+      const count = (state.devices || []).length;
+      notify(count ? `Connection refreshed. ${count === 1 ? "1 iPhone" : `${count} iPhones`} on the cable.`
+        : "Connection refreshed. No iPhone on the cable.");
+    }
+  } finally {
+    refresh.classList.remove("is-busy");
+  }
+}
+
+function signature(state) {
+  return JSON.stringify([
+    (state.devices || []).map((d) => d.udid), state.wifi?.paired, state.developerMode,
+    state.driver?.ready, state.error, state.screen?.phase, state.screen?.transport, state.screen?.error,
+  ]);
+}
+
+// Notice a phone being plugged in or unplugged without pressing Refresh.
+window.setInterval(async () => {
+  if (document.hidden || refresh.disabled) return;
+  try {
+    const state = await getJson("/api/status");
+    if (signature(state) !== statusSignature) load();
+  } catch (_) {}
+}, 4000);
 
 async function load() {
   refresh.disabled = true;
@@ -89,6 +172,7 @@ async function load() {
   detail.replaceChildren();
   try {
     const state = await getJson("/api/status");
+    statusSignature = signature(state);
     wifiPaired = state.wifi?.paired || [];
     usbConnected = (state.devices || []).length > 0;
     renderStatus(state);
@@ -96,10 +180,12 @@ async function load() {
     renderWifi();
     renderScreen(state.screen);
     renderPills(state);
+    return state;
   } catch (error) {
     setPill(pillConnection, "Offline", "bad");
     statusNote.textContent = error.message;
-    statusNote.className = "warn";
+    statusNote.className = "fine warn";
+    return null;
   } finally {
     refresh.disabled = false;
   }
@@ -161,10 +247,10 @@ function renderStatus(state) {
     state.error ||
     (connected ? "Device connected. Press Start mirroring." : driver.detail) ||
     "";
-  statusNote.className = state.error || !driver.ready ? "warn" : "";
+  statusNote.className = state.error || !driver.ready ? "fine warn" : "fine";
   if (!connected && (state.wifi?.paired || []).length) {
     statusNote.textContent = "No cable. Choose Wi‑Fi, keep the iPhone unlocked on the same network, and press Start mirroring.";
-    statusNote.className = "";
+    statusNote.className = "fine";
     placeholderHint.textContent = "No cable needed — choose Wi‑Fi and press Start mirroring.";
   } else if (!connected) {
     placeholderHint.textContent = "Connect your iPhone with a data cable, unlock it, and tap Trust.";
@@ -255,12 +341,13 @@ function renderScreen(screen) {
   const mirroring = screen.phase === "running" && screen.transport === transport;
   if (mirroring) {
     workspace.classList.add("is-live");
+    document.body.classList.add("is-live");
     phoneShell.classList.add("live");
     remotePanel.hidden = false;
     restartScreen.hidden = false;
     kbToggle.hidden = false;
-    screenNote.textContent = "Mirroring — typing on your keyboard goes to the iPhone.";
-    screenNote.className = "";
+    viewTools.hidden = false;
+    notifyScreen("");
     showScreen.textContent = "Mirroring…";
     showScreen.disabled = true;
     if (screenView.getAttribute("src") !== MIRROR_PAGE) screenView.src = MIRROR_PAGE;
@@ -269,34 +356,34 @@ function renderScreen(screen) {
   }
 
   workspace.classList.remove("is-live");
+  document.body.classList.remove("is-live");
   phoneShell.classList.remove("live");
   remotePanel.hidden = true;
   restartScreen.hidden = true;
   kbToggle.hidden = true;
+  viewTools.hidden = true;
+  setOrientation(false);
+  setZoomLabel(1);
   screenView.hidden = true;
   screenView.src = "about:blank";
   showScreen.textContent = "Start mirroring";
   showScreen.disabled = false;
 
   if (screen.phase === "starting") {
-    screenNote.textContent = screen.note || "Starting stream… keep the iPhone unlocked.";
-    screenNote.className = "";
+    notifyScreen(screen.note || "Starting stream… keep the iPhone unlocked.");
     showScreen.disabled = true;
     showScreen.textContent = "Connecting…";
     return;
   }
   if (screen.phase === "running" && screen.transport !== transport) {
-    screenNote.textContent = `Click Start mirroring to connect over ${transport === "wifi" ? "Wi-Fi" : "USB"}.`;
-    screenNote.className = "";
+    notifyScreen(`Click Start mirroring to connect over ${transport === "wifi" ? "Wi-Fi" : "USB"}.`);
     return;
   }
   if (screen.error) {
-    screenNote.textContent = screen.error;
-    screenNote.className = "warn";
+    notifyScreen(screen.error, "warn");
     return;
   }
-  screenNote.textContent = "";
-  screenNote.className = "";
+  notifyScreen("");
 }
 
 async function showPhone() {
@@ -307,8 +394,7 @@ async function showPhone() {
     watchScreen();
     load();
   } catch (error) {
-    screenNote.textContent = error.message;
-    screenNote.className = "warn";
+    notify(error.message, "warn");
     showScreen.textContent = "Start mirroring";
     showScreen.disabled = false;
   }
@@ -325,7 +411,7 @@ function watchScreen() {
         load();
       }
     } catch (error) {
-      screenNote.textContent = error.message;
+      notify(error.message, "warn");
       window.clearInterval(screenTimer);
     }
   }, 1000);
@@ -375,21 +461,14 @@ function reloadMirrorIframe() {
 
 async function restartMirror() {
   restartScreen.disabled = true;
-  screenNote.textContent = "Restarting screen… keep the iPhone unlocked.";
-  screenNote.className = "";
+  notify("Restarting screen… keep the iPhone unlocked.");
   try {
     await postJson("/api/screen/restart", { udid: selectedUdid });
     await new Promise((r) => setTimeout(r, 1500));
     reloadMirrorIframe();
-    screenNote.textContent = "Restart sent — waiting for picture…";
-    window.setTimeout(() => {
-      if (workspace.classList.contains("is-live")) {
-        screenNote.textContent = "Mirroring — use Restart screen if the picture stays black.";
-      }
-    }, 4000);
+    notify("Restart sent. Use Restart screen again if the picture stays black.");
   } catch (error) {
-    screenNote.textContent = error.message;
-    screenNote.className = "warn";
+    notify(error.message, "warn");
   } finally {
     restartScreen.disabled = false;
   }
@@ -427,7 +506,20 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const GESTURES = {
   notifications: { from: [16000, 0], to: [16000, 42000], steps: 12, dt: 16 },
   control: { from: [58000, 0], to: [58000, 42000], steps: 12, dt: 16 },
+  // Search opens with a swipe down that starts mid-screen, away from the edges.
+  search: { from: [32768, 22000], to: [32768, 44000], steps: 12, dt: 16 },
 };
+
+// Screenshot: hold Volume up and Home together, then let go of both.
+async function screenshot() {
+  await mirrorPost("/button", { name: "home", state: "down" });
+  await mirrorPost("/button", { name: "volume-up", state: "down" });
+  await sleep(150);
+  await mirrorPost("/button", { name: "volume-up", state: "up" });
+  await mirrorPost("/button", { name: "home", state: "up" });
+}
+
+const COMBOS = { screenshot };
 
 // A swipe-up injected over USB is too slow for iOS to treat as the Home
 // gesture, so Home and the app switcher use the Home button instead.
@@ -469,6 +561,25 @@ function toggleFullscreen() {
   }
   phoneScreen.requestFullscreen?.().catch(() => {});
 }
+
+// The mirror page reports its picture's shape and zoom so the frame can turn
+// sideways with the iPhone and the zoom button can show the real level.
+function setOrientation(landscape, turn = "ccw") {
+  phoneShell.classList.toggle("is-landscape", landscape);
+  phoneShell.dataset.turn = turn === "cw" ? "cw" : "ccw";
+}
+
+function setZoomLabel(zoom) {
+  zoomLevel.textContent = `${Math.round(zoom * 100)}%`;
+}
+
+window.addEventListener("message", (event) => {
+  if (event.origin !== location.origin || event.source !== screenView.contentWindow) return;
+  const data = event.data;
+  if (data?.type !== "pane-view") return;
+  if (typeof data.landscape === "boolean") setOrientation(data.landscape, data.turn);
+  if (typeof data.zoom === "number") setZoomLabel(data.zoom);
+});
 
 window.handsetKeyboardOn = true;
 
@@ -708,13 +819,17 @@ function wireRemoteControls() {
   document.querySelector("#fs-exit")?.addEventListener("click", toggleFullscreen);
   document.addEventListener("fullscreenchange", () => {
     const btn = document.querySelector("#fullscreen");
-    if (btn) btn.textContent = document.fullscreenElement ? "Exit full screen" : "⛶ Full screen";
+    btn?.setAttribute("aria-label", document.fullscreenElement ? "Exit full screen" : "Full screen");
+    btn?.setAttribute("title", document.fullscreenElement ? "Exit full screen (Esc)" : "Full screen touch view (Esc to exit)");
   });
   document.querySelectorAll("[data-btn]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const name = btn.dataset.btn;
       if (name) mirrorPost("/button", { name, state: "press" });
     });
+  });
+  document.querySelectorAll("[data-combo]").forEach((btn) => {
+    btn.addEventListener("click", () => COMBOS[btn.dataset.combo]?.());
   });
   document.querySelectorAll("[data-swipe]").forEach((btn) => {
     btn.addEventListener("click", () => swipe(btn.dataset.swipe));
