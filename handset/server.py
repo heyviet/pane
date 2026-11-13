@@ -93,7 +93,7 @@ class Handler(BaseHTTPRequestHandler):
         raw = self.rfile.read(length) if length else b"{}"
         try:
             payload = json.loads(raw.decode("utf-8") or "{}")
-        except json.JSONDecodeError:
+        except ValueError:  # bad JSON, or a body that isn't UTF-8 text at all
             payload = {}
         if not isinstance(payload, dict):
             payload = {}

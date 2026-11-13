@@ -538,11 +538,20 @@ async function screenshot() {
   const button = document.querySelector("#screenshot");
   button.disabled = true;
   try {
-    const response = await fetch("/api/screenshot", {
-      method: "POST",
-      headers: { "Content-Type": "image/png", "X-File-Name": encodeURIComponent(screenshotName()) },
-      body: blob,
-    });
+    let response;
+    try {
+      response = await fetch("/api/screenshot", {
+        method: "POST",
+        headers: { "Content-Type": "image/png", "X-File-Name": encodeURIComponent(screenshotName()) },
+        body: blob,
+      });
+    } catch (_) {
+      throw new Error("Could not reach Pane to save the screenshot. Quit and reopen Pane, then try again.");
+    }
+    if (response.status === 404) {
+      // The page is newer than the running server (it reads its code only at startup).
+      throw new Error("Pane needs a restart to save screenshots. Quit and reopen Pane.");
+    }
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Could not save the screenshot.");
     if (result.cancelled) return;
