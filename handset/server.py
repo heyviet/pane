@@ -83,6 +83,9 @@ class Handler(BaseHTTPRequestHandler):
             except (ValueError, OSError, RuntimeError) as error:
                 self._json({"error": str(error)}, 502)
             return
+        if path in {"/api/screenshot", "/api/screenshot/open"}:
+            self._screenshot(path)
+            return
         if path == MIRROR_PREFIX or path.startswith(f"{MIRROR_PREFIX}/"):
             self._proxy_mirror("POST")
             return
@@ -90,7 +93,7 @@ class Handler(BaseHTTPRequestHandler):
         raw = self.rfile.read(length) if length else b"{}"
         try:
             payload = json.loads(raw.decode("utf-8") or "{}")
-        except json.JSONDecodeError:
+        except ValueError:  # bad JSON, or a body that isn't UTF-8 text at all
             payload = {}
         if not isinstance(payload, dict):
             payload = {}
@@ -120,6 +123,41 @@ class Handler(BaseHTTPRequestHandler):
             self._json(read_handset(udid))
         except MuxError as error:
             self._json({"udid": udid, "paired": False, "error": str(error)}, status=409)
+
+    def _screenshot(self, path: str) -> None:
+        """Save a screenshot through the Windows save dialog, or open / reveal a saved one."""
+        from handset import screenshots
+        host = self.headers.get("Host", "")
+        origin = self.headers.get("Origin")
+        # Same guard as the clipboard: these open dialogs and files on the PC.
+        if (urlparse("http://" + host).hostname not in {"127.0.0.1", "localhost", "::1"}
+                or (origin and origin != "http://" + host)
+                or self.headers.get("Sec-Fetch-Site") == "cross-site"):
+            self.close_connection = True
+            self._json({"error": "Open Pane through localhost to save screenshots."}, 403)
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            if path == "/api/screenshot":
+                if not 0 < length <= screenshots.MAX_BYTES:
+                    raise ValueError("That screenshot is too large.")
+                name = unquote(self.headers.get("X-File-Name", ""))
+                self._json(screenshots.save(self.rfile.read(length), name))
+                return
+            if not 0 < length <= 4096:
+                raise ValueError("Invalid screenshot request.")
+            payload = json.loads(self.rfile.read(length))
+            if not isinstance(payload, dict) or payload.get("action") not in {"open", "folder", "delete"}:
+                raise ValueError("Invalid screenshot request.")
+            if payload["action"] == "open":
+                screenshots.open_file(payload.get("path"))
+            elif payload["action"] == "delete":
+                screenshots.delete(payload.get("path"))
+            else:
+                screenshots.show_in_folder(payload.get("path"))
+            self._json({"ok": True})
+        except (ValueError, OSError, RuntimeError) as error:
+            self._json({"error": str(error)}, 400)
 
     def _phone_video_thumb(self) -> None:
         from urllib.parse import parse_qs

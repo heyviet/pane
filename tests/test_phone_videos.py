@@ -80,7 +80,7 @@ def device():
         "/PhotoData/Metadata/DCIM/103APPLE/IMG_3005.JPG": (JPEG, local(2026, 11, 12, 21, 44)),
         "/PhotoData/Metadata/DCIM/103APPLE/IMG_3005.THM": (JPEG, local(2026, 3, 20, 22, 12)),
         "/PhotoData/Thumbnails/V2/DCIM/106APPLE/IMG_6331.MP4/5005.JPG": (JPEG, local(2026, 11, 3)),
-        f"/PhotoData/Thumbnails/V2/PhotoData/CPLAssets/group249/{ICLOUD}.MOV/5005.JPG": (JPEG + b"cpl", local(2026, 11, 12)),
+        # Real devices have no V2 thumbnail folder for iCloud originals in CPLAssets.
     }
 
 
@@ -141,7 +141,7 @@ class PhoneVideoTests(unittest.TestCase):
         self.assertEqual(self.run_async(phone_videos.thumbnail(self.rsd, "/DCIM/106APPLE/IMG_6331.MP4")), JPEG)
         self.assertIsNone(self.run_async(phone_videos.thumbnail(self.rsd, "/DCIM/106APPLE/IMG_6330.MP4")))
         path = f"/PhotoData/CPLAssets/group249/{ICLOUD}.MOV"
-        self.assertEqual(self.run_async(phone_videos.thumbnail(self.rsd, path)), JPEG + b"cpl")
+        self.assertIsNone(self.run_async(phone_videos.thumbnail(self.rsd, path)))
         with tempfile.TemporaryDirectory() as folder:
             first = self.run_async(phone_videos.fetch(self.rsd, path, Path(folder)))
             second = self.run_async(phone_videos.fetch(self.rsd, path, Path(folder)))
@@ -149,6 +149,16 @@ class PhoneVideoTests(unittest.TestCase):
             self.assertEqual(first.read_bytes(), self.files[path][0])
             self.assertNotEqual(first, second)
             self.assertEqual([p.name for p in Path(folder).iterdir() if p.name.startswith(".")], [])
+
+    def test_thumbnail_falls_back_to_the_photos_poster_frame(self):
+        # No V2 folder: an opened video's Metadata JPG is its preview (iCloud downloads, older clips).
+        self.assertEqual(self.run_async(phone_videos.thumbnail(self.rsd, "/DCIM/103APPLE/IMG_3005.MOV")), JPEG)
+        path = f"/PhotoData/CPLAssets/group249/{ICLOUD}.MOV"
+        self.files[f"/PhotoData/Metadata/PhotoData/CPLAssets/group249/{ICLOUD}.JPG"] = (JPEG + b"cpl", local(2026, 11, 12))
+        self.assertEqual(self.run_async(phone_videos.thumbnail(self.rsd, path)), JPEG + b"cpl")
+        # A poster that isn't a JPEG is ignored.
+        self.files["/PhotoData/Metadata/DCIM/106APPLE/IMG_6330.JPG"] = (b"garbage", local(2026, 11, 12))
+        self.assertIsNone(self.run_async(phone_videos.thumbnail(self.rsd, "/DCIM/106APPLE/IMG_6330.MP4")))
 
     def test_paths_outside_the_video_folders_are_rejected(self):
         for path in ("/PhotoData/Photos.sqlite", "/DCIM/106APPLE/../../x.MOV", "/DCIM/106APPLE/IMG_1.HEIC", None,

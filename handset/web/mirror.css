@@ -22,9 +22,15 @@ body {
 
 #c {
   display: block;
-  max-width: 100%;
-  max-height: 100%;
+  flex: none;
   touch-action: none;
   outline: none;
   image-rendering: high-quality;
+}
+
+/* Zoomed in full screen: scroll (wheel or scrollbars) to see the rest. */
+body.zoomed {
+  overflow: auto;
+  justify-content: safe center;
+  align-items: safe center;
 }

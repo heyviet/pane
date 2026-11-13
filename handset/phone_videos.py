@@ -235,15 +235,34 @@ async def library(rsd, now: float | None = None) -> dict:
 
 
 async def thumbnail(rsd, path: str) -> bytes | None:
+    """A JPEG preview of the video, or None.
+
+    Camera-roll videos have a per-asset thumbnail folder under ``/PhotoData/Thumbnails/V2``.
+    iCloud originals downloaded into ``CPLAssets`` don't, so fall back to the poster frame Photos
+    writes to ``/PhotoData/Metadata`` (``.JPG``, or the older ``.THM``) when the video is opened.
+    """
     folder = f"/PhotoData/Thumbnails/V2{valid_path(path)}"
+    metadata = _metadata_path(path)
+    posters = (metadata, metadata[:-len(".JPG")] + ".THM")
 
     async def read(afc):
         try:
             names = await afc.listdir(folder)
         except Exception:
-            return None
+            names = []
         jpegs = sorted((n for n in names if n.lower().endswith(".jpg")), key=lambda n: n != "5005.JPG")
-        return await afc.get_file_contents(f"{folder}/{jpegs[0]}") if jpegs else None
+        if jpegs:
+            return await afc.get_file_contents(f"{folder}/{jpegs[0]}")
+        for poster in posters:
+            try:
+                data = await afc.get_file_contents(poster)
+            except (ConnectionError, EOFError, asyncio.IncompleteReadError):
+                raise  # let _with_afc reconnect
+            except Exception:
+                continue  # no such poster
+            if data and data[:3] == b"\xff\xd8\xff":
+                return data
+        return None
     return await _with_afc(rsd, read)
 
 

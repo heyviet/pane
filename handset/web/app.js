@@ -3,15 +3,12 @@ const statusNote = document.querySelector("#status-note");
 const devicesEl = document.querySelector("#devices");
 const detail = document.querySelector("#detail");
 const refresh = document.querySelector("#refresh");
-const screenNote = document.querySelector("#screen-note");
 const showScreen = document.querySelector("#show-screen");
 const screenView = document.querySelector("#screen-view");
 const phoneShell = document.querySelector("#phone-shell");
 const placeholderHint = document.querySelector("#placeholder-hint");
 const pillConnection = document.querySelector("#pill-connection");
 const pillDevice = document.querySelector("#pill-device");
-const toggleGuide = document.querySelector("#toggle-guide");
-const runGuide = document.querySelector("#run-guide");
 const workspace = document.querySelector("#workspace");
 const remotePanel = document.querySelector("#remote-panel");
 const restartScreen = document.querySelector("#restart-screen");
@@ -19,6 +16,9 @@ const phoneScreen = document.querySelector("#phone-screen");
 const kbToggle = document.querySelector("#kb-toggle");
 const wifiState = document.querySelector("#wifi-state");
 const wifiPair = document.querySelector("#wifi-pair");
+const viewTools = document.querySelector("#view-tools");
+const zoomLevel = document.querySelector("#zoom-reset");
+const drawerToggle = document.querySelector("#drawer-toggle");
 const MIRROR_PAGE = "/mirror.html";
 const MIRROR_API = "/mirror";
 
@@ -27,6 +27,24 @@ let screenTimer = 0;
 let transport = localStorage.getItem("handset-transport") === "wifi" ? "wifi" : "usb";
 let wifiPaired = [];
 let usbConnected = false;
+let statusSignature = "";
+let lastScreenMessage = "";
+
+// Notes about the stream go to a toast instead of a line under the phone.
+function notify(text, tone = "") {
+  if (text) window.PaneToast.show(text, tone, "screen");
+}
+
+// Only toast a stream message when it changes: renderScreen runs every second
+// while a stream starts, and a dismissed toast should stay dismissed.
+function notifyScreen(text, tone = "") {
+  if (text === lastScreenMessage) return;
+  lastScreenMessage = text;
+  if (text) notify(text, tone);
+  else window.PaneToast.clear("screen");
+}
+
+wireDrawer();
 
 document.querySelectorAll("[data-transport]").forEach((btn) => {
   btn.addEventListener("click", () => setTransport(btn.dataset.transport));
@@ -60,28 +78,134 @@ async function setUpWifi() {
   try {
     const result = await postJson("/api/wifi/pair", { udid: selectedUdid });
     if (!result.ok) throw new Error(result.error || "Wi‑Fi setup failed.");
-    screenNote.textContent = "Wi‑Fi is set up. You can unplug the cable and choose Wi‑Fi.";
-    screenNote.className = "";
+    notify("Wi‑Fi is set up. You can unplug the cable and choose Wi‑Fi.");
   } catch (error) {
-    screenNote.textContent = error.message;
-    screenNote.className = "warn";
+    notify(error.message, "warn");
   } finally {
     wifiPair.textContent = "Set up Wi‑Fi";
     load();
   }
 }
 
-refresh.addEventListener("click", () => load());
+refresh.addEventListener("click", (event) => {
+  // The button sits in the section's <summary>; don't collapse the section.
+  event.preventDefault();
+  event.stopPropagation();
+  refreshConnection();
+});
 showScreen.addEventListener("click", () => showPhone());
 restartScreen.addEventListener("click", () => restartMirror());
 wireRemoteControls();
 
-toggleGuide.addEventListener("click", () => {
-  const open = runGuide.hidden;
-  runGuide.hidden = !open;
-  toggleGuide.setAttribute("aria-expanded", String(open));
-  if (open) runGuide.scrollIntoView({ behavior: "smooth", block: "start" });
-});
+function wireDrawer() {
+  const root = document.documentElement;
+  const sync = () => drawerToggle.setAttribute("aria-expanded", String(!root.classList.contains("drawer-closed")));
+  // The remembered state was applied in <head>; skip the slide-in on load.
+  root.classList.add("drawer-init");
+  requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove("drawer-init")));
+  sync();
+  // Only this button closes the drawer: clicks elsewhere leave it open.
+  drawerToggle.addEventListener("click", () => {
+    const closed = root.classList.toggle("drawer-closed");
+    try { localStorage.setItem("pane-sidebar", closed ? "closed" : "open"); } catch (_) {}
+    sync();
+  });
+
+  let sections = {};
+  try { sections = JSON.parse(localStorage.getItem("pane-sections") || "{}") || {}; } catch (_) {}
+  document.querySelectorAll("details.section[data-section]").forEach((section) => {
+    const key = section.dataset.section;
+    if (typeof sections[key] === "boolean") section.open = sections[key];
+    section.addEventListener("toggle", () => {
+      sections[key] = section.open;
+      try { localStorage.setItem("pane-sections", JSON.stringify(sections)); } catch (_) {}
+    });
+  });
+  // A ? inside a section label explains it; clicking it must not collapse the section.
+  document.querySelectorAll(".help").forEach((help) => {
+    help.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      help.focus();
+    });
+  });
+}
+
+// Resolves true once the mirror page at `page` shows a picture ("Live"), false
+// if it reports a problem or nothing arrives in time. Mirror pages report
+// their progress as pane-toast messages in the "stream" category; the page
+// being replaced also reports its stream being cut, which must not count.
+function waitForPicture(page, timeoutMs = 15000) {
+  return new Promise((resolve) => {
+    const done = (ok) => {
+      window.removeEventListener("message", onMessage);
+      clearTimeout(timer);
+      resolve(ok);
+    };
+    const onMessage = (event) => {
+      const data = event.data;
+      if (event.origin !== location.origin || data?.type !== "pane-toast" || data.category !== "stream") return;
+      if (data.page !== page) return;
+      if (data.dismiss) done(true);
+      else if (data.tone === "warn") done(false);
+    };
+    const timer = setTimeout(() => done(false), timeoutMs);
+    window.addEventListener("message", onMessage);
+  });
+}
+
+function connectionSummary(state) {
+  const count = (state.devices || []).length;
+  if (transport === "wifi") {
+    return wifiPaired.length ? "Wi‑Fi is set up. Press Start mirroring to connect."
+      : "Wi‑Fi isn't set up yet. Plug in the cable once and press Set up Wi‑Fi.";
+  }
+  if (!count) return "No iPhone on the cable. Plug it in, unlock it and tap Trust.";
+  return `${count === 1 ? "iPhone" : `${count} iPhones`} found on the cable. Press Start mirroring.`;
+}
+
+// Refresh re-checks the connection (cable, Wi‑Fi pairing, Developer Mode) and,
+// while mirroring, reconnects this window to the running stream. It doesn't
+// touch the stream on the iPhone: Restart screen does that.
+async function refreshConnection() {
+  if (refresh.classList.contains("is-busy")) return;
+  refresh.classList.add("is-busy");
+  try {
+    const state = await load();
+    if (!state) {
+      notify("Refresh failed: Pane's server isn't responding. Quit and reopen Pane.", "warn");
+      return;
+    }
+    if (!workspace.classList.contains("is-live")) {
+      notify(`Connection checked. ${connectionSummary(state)}`);
+      return;
+    }
+    const page = reloadMirrorIframe();
+    if (page && await waitForPicture(page)) {
+      notify("Refreshed: reconnected to the iPhone screen.");
+    } else {
+      notify("Refreshed, but no picture came back. Try Restart screen.", "warn");
+    }
+  } finally {
+    refresh.classList.remove("is-busy");
+  }
+}
+
+function signature(state) {
+  return JSON.stringify([
+    (state.devices || []).map((d) => d.udid), state.wifi?.paired, state.developerMode,
+    state.driver?.ready, state.error, state.screen?.phase, state.screen?.transport, state.screen?.error,
+  ]);
+}
+
+// Notice a phone being plugged in or unplugged without pressing Refresh.
+window.setInterval(async () => {
+  if (document.hidden || refresh.disabled) return;
+  try {
+    const state = await getJson("/api/status");
+    if (signature(state) !== statusSignature) load();
+  } catch (_) {}
+}, 4000);
 
 async function load() {
   refresh.disabled = true;
@@ -89,6 +213,7 @@ async function load() {
   detail.replaceChildren();
   try {
     const state = await getJson("/api/status");
+    statusSignature = signature(state);
     wifiPaired = state.wifi?.paired || [];
     usbConnected = (state.devices || []).length > 0;
     renderStatus(state);
@@ -96,10 +221,12 @@ async function load() {
     renderWifi();
     renderScreen(state.screen);
     renderPills(state);
+    return state;
   } catch (error) {
     setPill(pillConnection, "Offline", "bad");
     statusNote.textContent = error.message;
-    statusNote.className = "warn";
+    statusNote.className = "fine warn";
+    return null;
   } finally {
     refresh.disabled = false;
   }
@@ -128,8 +255,7 @@ function renderPills(state) {
   }
 
   if (!connected) {
-    pillDevice.hidden = !overWifi;
-    pillDevice.textContent = "Wi‑Fi";
+    pillDevice.hidden = true;
     return;
   }
   pillDevice.hidden = false;
@@ -161,10 +287,10 @@ function renderStatus(state) {
     state.error ||
     (connected ? "Device connected. Press Start mirroring." : driver.detail) ||
     "";
-  statusNote.className = state.error || !driver.ready ? "warn" : "";
+  statusNote.className = state.error || !driver.ready ? "fine warn" : "fine";
   if (!connected && (state.wifi?.paired || []).length) {
     statusNote.textContent = "No cable. Choose Wi‑Fi, keep the iPhone unlocked on the same network, and press Start mirroring.";
-    statusNote.className = "";
+    statusNote.className = "fine";
     placeholderHint.textContent = "No cable needed — choose Wi‑Fi and press Start mirroring.";
   } else if (!connected) {
     placeholderHint.textContent = "Connect your iPhone with a data cable, unlock it, and tap Trust.";
@@ -255,12 +381,13 @@ function renderScreen(screen) {
   const mirroring = screen.phase === "running" && screen.transport === transport;
   if (mirroring) {
     workspace.classList.add("is-live");
+    document.body.classList.add("is-live");
     phoneShell.classList.add("live");
     remotePanel.hidden = false;
     restartScreen.hidden = false;
     kbToggle.hidden = false;
-    screenNote.textContent = "Mirroring — typing on your keyboard goes to the iPhone.";
-    screenNote.className = "";
+    viewTools.hidden = false;
+    notifyScreen("");
     showScreen.textContent = "Mirroring…";
     showScreen.disabled = true;
     if (screenView.getAttribute("src") !== MIRROR_PAGE) screenView.src = MIRROR_PAGE;
@@ -269,34 +396,34 @@ function renderScreen(screen) {
   }
 
   workspace.classList.remove("is-live");
+  document.body.classList.remove("is-live");
   phoneShell.classList.remove("live");
   remotePanel.hidden = true;
   restartScreen.hidden = true;
   kbToggle.hidden = true;
+  viewTools.hidden = true;
+  setOrientation(false);
+  setZoom(1);
   screenView.hidden = true;
   screenView.src = "about:blank";
   showScreen.textContent = "Start mirroring";
   showScreen.disabled = false;
 
   if (screen.phase === "starting") {
-    screenNote.textContent = screen.note || "Starting stream… keep the iPhone unlocked.";
-    screenNote.className = "";
+    notifyScreen(screen.note || "Starting stream… keep the iPhone unlocked.");
     showScreen.disabled = true;
     showScreen.textContent = "Connecting…";
     return;
   }
   if (screen.phase === "running" && screen.transport !== transport) {
-    screenNote.textContent = `Click Start mirroring to connect over ${transport === "wifi" ? "Wi-Fi" : "USB"}.`;
-    screenNote.className = "";
+    notifyScreen(`Click Start mirroring to connect over ${transport === "wifi" ? "Wi-Fi" : "USB"}.`);
     return;
   }
   if (screen.error) {
-    screenNote.textContent = screen.error;
-    screenNote.className = "warn";
+    notifyScreen(screen.error, "warn");
     return;
   }
-  screenNote.textContent = "";
-  screenNote.className = "";
+  notifyScreen("");
 }
 
 async function showPhone() {
@@ -307,8 +434,7 @@ async function showPhone() {
     watchScreen();
     load();
   } catch (error) {
-    screenNote.textContent = error.message;
-    screenNote.className = "warn";
+    notify(error.message, "warn");
     showScreen.textContent = "Start mirroring";
     showScreen.disabled = false;
   }
@@ -325,7 +451,7 @@ function watchScreen() {
         load();
       }
     } catch (error) {
-      screenNote.textContent = error.message;
+      notify(error.message, "warn");
       window.clearInterval(screenTimer);
     }
   }, 1000);
@@ -364,32 +490,30 @@ function mirrorMessage(cmd, extra = {}) {
   screenView.contentWindow.postMessage({ source: "handset", cmd, ...extra }, window.location.origin);
 }
 
+// Returns the new mirror page's URL, so callers can follow that page's status.
 function reloadMirrorIframe() {
-  if (screenView.hidden) return;
-  const stamp = `t=${Date.now()}`;
+  if (screenView.hidden) return null;
+  const page = new URL(`${MIRROR_PAGE}?t=${Date.now()}`, location.href).href;
   screenView.src = "about:blank";
-  requestAnimationFrame(() => {
-    screenView.src = `${MIRROR_PAGE}?${stamp}`;
-  });
+  // A timer, not requestAnimationFrame: animation frames pause while the
+  // window is minimized or hidden, which would leave the mirror blank.
+  setTimeout(() => {
+    screenView.src = page;
+  }, 0);
+  return page;
 }
 
 async function restartMirror() {
   restartScreen.disabled = true;
-  screenNote.textContent = "Restarting screen… keep the iPhone unlocked.";
-  screenNote.className = "";
+  notify("Restarting screen… keep the iPhone unlocked.");
   try {
     await postJson("/api/screen/restart", { udid: selectedUdid });
     await new Promise((r) => setTimeout(r, 1500));
-    reloadMirrorIframe();
-    screenNote.textContent = "Restart sent — waiting for picture…";
-    window.setTimeout(() => {
-      if (workspace.classList.contains("is-live")) {
-        screenNote.textContent = "Mirroring — use Restart screen if the picture stays black.";
-      }
-    }, 4000);
+    const page = reloadMirrorIframe();
+    if (page && await waitForPicture(page, 20000)) notify("Screen restarted.");
+    else notify("The screen restarted, but no picture came back. Press Restart screen again.", "warn");
   } catch (error) {
-    screenNote.textContent = error.message;
-    screenNote.className = "warn";
+    notify(error.message, "warn");
   } finally {
     restartScreen.disabled = false;
   }
@@ -427,7 +551,116 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const GESTURES = {
   notifications: { from: [16000, 0], to: [16000, 42000], steps: 12, dt: 16 },
   control: { from: [58000, 0], to: [58000, 42000], steps: 12, dt: 16 },
+  // Search opens with a swipe down that starts mid-screen, away from the edges.
+  search: { from: [32768, 22000], to: [32768, 44000], steps: 12, dt: 16 },
 };
+
+// Screenshot: save the mirrored picture to this PC (not to the iPhone's Photos).
+// Pane's server shows the Windows save dialog, so it knows where the file went
+// and can open it or show it in Explorer afterwards.
+function screenshotName() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return `iPhone screenshot ${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} at ${p(d.getHours())}.${p(d.getMinutes())}.${p(d.getSeconds())}.png`;
+}
+
+async function captureScreen() {
+  const canvas = screenView.hidden ? null : screenView.contentDocument?.getElementById("c");
+  if (!canvas || !canvas.width || !canvas.height) throw new Error("Start mirroring to take a screenshot.");
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+  if (!blob) throw new Error("The screen picture is not ready yet.");
+  return blob;
+}
+
+const ICON = (paths) => `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+const ICONS = {
+  open: ICON('<path d="M9 2.5h4.5V7M13.5 2.5 7.5 8.5M12 9.5v3a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3"/>'),
+  folder: ICON('<path d="M1.5 4.5a1 1 0 0 1 1-1h3.5l1.5 1.5h6a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z"/>'),
+  copy: ICON('<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/>'),
+  trash: ICON('<path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9a1 1 0 0 0 1 .9h4.6a1 1 0 0 0 1-.9L12 4M6.5 6.5v5M9.5 6.5v5"/>'),
+};
+
+// Delete asks twice: the first click arms the button (red, "Click again to
+// delete"), a second click within four seconds sends the file to the Recycle Bin.
+function confirmDelete(button, remove) {
+  if (button.classList.contains("is-armed")) {
+    clearTimeout(button._disarm);
+    remove();
+    return;
+  }
+  button.classList.add("is-armed");
+  button.title = "Click again to delete";
+  button.setAttribute("aria-label", "Click again to delete the screenshot");
+  button._disarm = setTimeout(() => {
+    button.classList.remove("is-armed");
+    button.title = "Delete screenshot";
+    button.setAttribute("aria-label", "Delete screenshot");
+  }, 4000);
+}
+
+async function copyImage(blob, actions) {
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+    window.PaneToast.show("Screenshot copied to the clipboard.", "", "screen", actions);
+  } catch (error) {
+    notify(`Could not copy the screenshot: ${error.message}`, "warn");
+  }
+}
+
+async function screenshot() {
+  let blob;
+  try {
+    // Capture first, so the picture is the moment of the click, not after the dialog.
+    blob = await captureScreen();
+  } catch (error) {
+    notify(error.message, "warn");
+    return;
+  }
+  const button = document.querySelector("#screenshot");
+  button.disabled = true;
+  try {
+    let response;
+    try {
+      response = await fetch("/api/screenshot", {
+        method: "POST",
+        headers: { "Content-Type": "image/png", "X-File-Name": encodeURIComponent(screenshotName()) },
+        body: blob,
+      });
+    } catch (_) {
+      throw new Error("Could not reach Pane to save the screenshot. Quit and reopen Pane, then try again.");
+    }
+    if (response.status === 404) {
+      // The page is newer than the running server (it reads its code only at startup).
+      throw new Error("Pane needs a restart to save screenshots. Quit and reopen Pane.");
+    }
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Could not save the screenshot.");
+    if (result.cancelled) return;
+    const reveal = (action) => postJson("/api/screenshot/open", { action, path: result.path })
+      .catch((error) => notify(error.message, "warn"));
+    const actions = [
+      { label: "Open", icon: ICONS.open, run: () => reveal("open") },
+      { label: "Show in folder", icon: ICONS.folder, run: () => reveal("folder") },
+      { label: "Copy to clipboard", icon: ICONS.copy, run: () => copyImage(blob, actions) },
+      {
+        label: "Delete screenshot", icon: ICONS.trash, tone: "danger",
+        run: (button) => confirmDelete(button, async () => {
+          try {
+            await postJson("/api/screenshot/open", { action: "delete", path: result.path });
+            notify(`${result.name} moved to the Recycle Bin.`);
+          } catch (error) {
+            notify(error.message, "warn");
+          }
+        }),
+      },
+    ];
+    window.PaneToast.show(`Screenshot saved as ${result.name}.`, "", "screen", actions);
+  } catch (error) {
+    notify(error.message, "warn");
+  } finally {
+    button.disabled = false;
+  }
+}
 
 // A swipe-up injected over USB is too slow for iOS to treat as the Home
 // gesture, so Home and the app switcher use the Home button instead.
@@ -469,6 +702,53 @@ function toggleFullscreen() {
   }
   phoneScreen.requestFullscreen?.().catch(() => {});
 }
+
+// Full screen shows the whole picture (contain), with its own zoom from there.
+// Outside full screen the picture fills the phone screen (cover), and zoom
+// scales the phone instead.
+let fsZoom = 1;
+
+function applyFit() {
+  const full = document.fullscreenElement === phoneScreen;
+  mirrorMessage("fit", full ? { mode: "contain", zoom: fsZoom } : { mode: "cover", zoom: 1 });
+  document.querySelector("#fs-zoom-reset").textContent = `${Math.round(fsZoom * 100)}%`;
+}
+
+function setFsZoom(value) {
+  fsZoom = Math.max(1, Math.min(ZOOM_MAX, value));
+  if (Math.abs(fsZoom - 1) < 0.02) fsZoom = 1;
+  applyFit();
+}
+
+// The mirror page reports its picture's shape so the frame can turn sideways
+// with the iPhone.
+function setOrientation(landscape, turn = "ccw") {
+  phoneShell.classList.toggle("is-landscape", landscape);
+  phoneShell.dataset.turn = turn === "cw" ? "cw" : "ccw";
+}
+
+// Zoom scales the whole iPhone frame; the picture inside always fills it.
+const ZOOM_STEP = 1.2;
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 3;
+let zoom = 1;
+
+function setZoom(value) {
+  zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, value));
+  if (Math.abs(zoom - 1) < 0.02) zoom = 1;
+  phoneShell.style.setProperty("--zoom", String(zoom));
+  zoomLevel.textContent = `${Math.round(zoom * 100)}%`;
+}
+
+window.addEventListener("message", (event) => {
+  if (event.origin !== location.origin || event.source !== screenView.contentWindow) return;
+  const data = event.data;
+  if (data?.type !== "pane-view") return;
+  if (typeof data.landscape === "boolean") setOrientation(data.landscape, data.turn);
+  if (typeof data.ratio === "number" && data.ratio > 0.2 && data.ratio <= 1) {
+    phoneShell.style.setProperty("--sr", data.ratio.toFixed(4));
+  }
+});
 
 window.handsetKeyboardOn = true;
 
@@ -706,9 +986,17 @@ function wireRemoteControls() {
   });
   document.querySelector("#fullscreen")?.addEventListener("click", toggleFullscreen);
   document.querySelector("#fs-exit")?.addEventListener("click", toggleFullscreen);
+  document.querySelector("#fs-zoom-in")?.addEventListener("click", () => setFsZoom(fsZoom * ZOOM_STEP));
+  document.querySelector("#fs-zoom-out")?.addEventListener("click", () => setFsZoom(fsZoom / ZOOM_STEP));
+  document.querySelector("#fs-zoom-reset")?.addEventListener("click", () => setFsZoom(1));
+  // A reloaded mirror page starts in cover mode: tell it again if full screen.
+  screenView.addEventListener("load", applyFit);
   document.addEventListener("fullscreenchange", () => {
+    fsZoom = 1;
+    applyFit();
     const btn = document.querySelector("#fullscreen");
-    if (btn) btn.textContent = document.fullscreenElement ? "Exit full screen" : "⛶ Full screen";
+    btn?.setAttribute("aria-label", document.fullscreenElement ? "Exit full screen" : "Full screen");
+    btn?.setAttribute("title", document.fullscreenElement ? "Exit full screen (Esc)" : "Full screen touch view (Esc to exit)");
   });
   document.querySelectorAll("[data-btn]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -716,12 +1004,13 @@ function wireRemoteControls() {
       if (name) mirrorPost("/button", { name, state: "press" });
     });
   });
+  document.querySelector("#screenshot")?.addEventListener("click", screenshot);
   document.querySelectorAll("[data-swipe]").forEach((btn) => {
     btn.addEventListener("click", () => swipe(btn.dataset.swipe));
   });
-  document.querySelector("#zoom-in")?.addEventListener("click", () => mirrorMessage("zoom-in"));
-  document.querySelector("#zoom-out")?.addEventListener("click", () => mirrorMessage("zoom-out"));
-  document.querySelector("#zoom-reset")?.addEventListener("click", () => mirrorMessage("zoom-reset"));
+  document.querySelector("#zoom-in")?.addEventListener("click", () => setZoom(zoom * ZOOM_STEP));
+  document.querySelector("#zoom-out")?.addEventListener("click", () => setZoom(zoom / ZOOM_STEP));
+  document.querySelector("#zoom-reset")?.addEventListener("click", () => setZoom(1));
   document.querySelector("#rotate-cw")?.addEventListener("click", () => mirrorMessage("rotate", { deg: 90 }));
   document.querySelector("#rotate-ccw")?.addEventListener("click", () => mirrorMessage("rotate", { deg: -90 }));
 }

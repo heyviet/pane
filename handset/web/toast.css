@@ -4,7 +4,7 @@
   bottom: max(20px, env(safe-area-inset-bottom));
   z-index: 10000;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px;
+  grid-template-columns: minmax(0, 1fr) auto 36px;
   align-items: center;
   gap: 12px;
   width: min(380px, calc(100vw - 40px));
@@ -19,8 +19,28 @@
   text-align: left;
 }
 #pane-toast[hidden] { display: none !important; }
+/* Close always takes the last column, right-aligned, even when there are no
+   action buttons (an empty actions box is hidden, which would otherwise pull
+   the close button into its column). */
+#pane-toast > button { grid-column: 3; justify-self: end; }
 #pane-toast-text { overflow-wrap: anywhere; }
 #pane-toast[data-tone="warn"] { color: #ffb85c; }
+#pane-toast-actions { display: flex; gap: 6px; }
+#pane-toast .pane-toast-action:has(svg) { padding: 0; }
+#pane-toast .pane-toast-action.is-danger { color: #ff6961; }
+#pane-toast .pane-toast-action.is-armed { color: #fff; background: #d70015; border-color: #ff453a; }
+#pane-toast .pane-toast-action.is-armed:hover { background: #ff3b30; }
+#pane-toast-actions:empty { display: none; }
+#pane-toast .pane-toast-action {
+  width: auto;
+  min-width: 36px;
+  padding: 0 10px;
+  border: 1px solid #3a3a44;
+  color: #7ec8ff;
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+}
 #pane-toast button {
   display: grid;
   place-items: center;
