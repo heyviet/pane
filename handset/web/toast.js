@@ -63,6 +63,8 @@
     if (event.origin !== location.origin || !frame || event.source !== frame.contentWindow) return;
     const data = event.data;
     if (!data || data.type !== "pane-toast") return;
+    // From a mirror page that has since been replaced: ignore.
+    if (data.page && data.page !== frame.src) return;
     if (data.dismiss) clear(data.category);
     else show(data.text, data.tone, data.category);
   });

@@ -131,10 +131,11 @@ function wireDrawer() {
   });
 }
 
-// Resolves true once the reloaded mirror page shows a picture ("Live"), false
-// if it reports a problem or nothing arrives in time. The mirror page reports
-// its progress as pane-toast messages in the "stream" category.
-function waitForPicture(timeoutMs = 15000) {
+// Resolves true once the mirror page at `page` shows a picture ("Live"), false
+// if it reports a problem or nothing arrives in time. Mirror pages report
+// their progress as pane-toast messages in the "stream" category; the page
+// being replaced also reports its stream being cut, which must not count.
+function waitForPicture(page, timeoutMs = 15000) {
   return new Promise((resolve) => {
     const done = (ok) => {
       window.removeEventListener("message", onMessage);
@@ -144,6 +145,7 @@ function waitForPicture(timeoutMs = 15000) {
     const onMessage = (event) => {
       const data = event.data;
       if (event.origin !== location.origin || data?.type !== "pane-toast" || data.category !== "stream") return;
+      if (data.page !== page) return;
       if (data.dismiss) done(true);
       else if (data.tone === "warn") done(false);
     };
@@ -178,9 +180,8 @@ async function refreshConnection() {
       notify(`Connection checked. ${connectionSummary(state)}`);
       return;
     }
-    const picture = waitForPicture();
-    reloadMirrorIframe();
-    if (await picture) {
+    const page = reloadMirrorIframe();
+    if (page && await waitForPicture(page)) {
       notify("Refreshed: reconnected to the iPhone screen.");
     } else {
       notify("Refreshed, but no picture came back. Try Restart screen.", "warn");
@@ -489,13 +490,17 @@ function mirrorMessage(cmd, extra = {}) {
   screenView.contentWindow.postMessage({ source: "handset", cmd, ...extra }, window.location.origin);
 }
 
+// Returns the new mirror page's URL, so callers can follow that page's status.
 function reloadMirrorIframe() {
-  if (screenView.hidden) return;
-  const stamp = `t=${Date.now()}`;
+  if (screenView.hidden) return null;
+  const page = new URL(`${MIRROR_PAGE}?t=${Date.now()}`, location.href).href;
   screenView.src = "about:blank";
-  requestAnimationFrame(() => {
-    screenView.src = `${MIRROR_PAGE}?${stamp}`;
-  });
+  // A timer, not requestAnimationFrame: animation frames pause while the
+  // window is minimized or hidden, which would leave the mirror blank.
+  setTimeout(() => {
+    screenView.src = page;
+  }, 0);
+  return page;
 }
 
 async function restartMirror() {
@@ -504,9 +509,8 @@ async function restartMirror() {
   try {
     await postJson("/api/screen/restart", { udid: selectedUdid });
     await new Promise((r) => setTimeout(r, 1500));
-    const picture = waitForPicture(20000);
-    reloadMirrorIframe();
-    if (await picture) notify("Screen restarted.");
+    const page = reloadMirrorIframe();
+    if (page && await waitForPicture(page, 20000)) notify("Screen restarted.");
     else notify("The screen restarted, but no picture came back. Press Restart screen again.", "warn");
   } catch (error) {
     notify(error.message, "warn");

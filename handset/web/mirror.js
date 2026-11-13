@@ -24,9 +24,17 @@ let frameCount = 0;
 let runGeneration = 0;
 let abortStream = null;
 
+// A page being replaced (Refresh, Restart screen) has its stream cut off;
+// that's expected, so it must not report it as an error.
+let leaving = false;
+window.addEventListener("pagehide", () => { leaving = true; });
+let announcedLive = false;
+
 function setStatus(text, tone, category = "stream") {
+  if (leaving) return;
   if (window.parent !== window) {
-    window.parent.postMessage({type: "pane-toast", text, tone, category, dismiss: tone === "ok"}, location.origin);
+    // `page` lets Pane ignore late messages from a page it already replaced.
+    window.parent.postMessage({type: "pane-toast", text, tone, category, dismiss: tone === "ok", page: location.href}, location.origin);
   } else if (tone === "ok") {
     window.PaneToast.clear(category);
   } else {
@@ -352,7 +360,7 @@ function drawPending() {
   lastFrameLandscape = landscape;
   try {
     drawFrame(f);
-    if (frameCount === 1) setStatus("Live", "ok");
+
   } catch (_) {}
   if (lastFrame && lastFrame !== f) {
     try {
@@ -409,6 +417,12 @@ async function run(generation) {
           requestAnimationFrame(drawPending);
         }
         frameCount += 1;
+        // Announce on the first decoded frame, not the first drawn one:
+        // drawing waits for animation frames, which pause in a hidden window.
+        if (!announcedLive) {
+          announcedLive = true;
+          setStatus("Live", "ok");
+        }
       },
       error: () => {
         needsResync = true;
@@ -579,6 +593,7 @@ function beginRun() {
     lastFrame = null;
   }
   frameCount = 0;
+  announcedLive = false;
   lastView = "";
   postView();
   run(generation).catch((err) => {
