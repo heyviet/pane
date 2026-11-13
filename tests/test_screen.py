@@ -97,6 +97,79 @@ class KeyboardAcknowledgementTests(unittest.IsolatedAsyncioTestCase):
             await server._clipboard_monitor._check()
             pc.assert_not_called()
 
+    async def test_messages_bubble_copy_is_synced_through_full_read(self):
+        from handset import clipboard
+        from tests.test_phone_pasteboard import keyed_attributed_string
+
+        cheap = {"pasteboard":{"metadata":{"nonce":"n","changeCount":5}, "items":[{
+            "types":["com.apple.messages.private","public.utf8-plain-text"],
+            "data":{"com.apple.messages.private":{"data":b"\x01"},
+                    "public.utf8-plain-text":{"isPromised":True,"isAvailable":False,"size":5}}}]}}
+        full = {"pasteboard":{"metadata":{"nonce":"n","changeCount":5}, "items":[{
+            "types":["com.apple.uikit.attributedstring"],
+            "data":{"com.apple.uikit.attributedstring":{"data":keyed_attributed_string("bubble text")}}}]}}
+
+        class Monitor:
+            def __init__(self, rsd, on_change, allow_full_pull):
+                self._on_change = on_change
+                self._last_change = ("n",4)
+                self._own_changes = []
+                self._recent_host_content = {}
+                self._set_tasks = set()
+            async def start(self):
+                pass
+
+        service = AsyncMock()
+        service.__aenter__.return_value = service
+        service.get.side_effect = [cheap, cheap, full]  # types only, primary, everything
+        server = SimpleNamespace(_clipboard_monitor=None, _rsd=object(),
+                                 _on_device_clipboard=Mock(), _stop_clipboard_monitor=AsyncMock())
+        state = {"enabled":True,"phase":"waiting","message":"","count":0}
+        with (patch.object(screen,"_SERVER",server), patch.object(screen,"_SYNC_STATE",state),
+              patch("pymobiledevice3.remote.core_device.pasteboard_service.PasteboardMonitor",Monitor),
+              patch("pymobiledevice3.remote.core_device.pasteboard_service.PasteboardService",return_value=service),
+              patch.object(clipboard,"_windows_clipboard") as pc):
+            await screen._configure_clipboard_sync(server,True)
+            await server._clipboard_monitor._check()
+            await asyncio.gather(*server._pane_sync_tasks)
+            pc.assert_called_once_with("bubble text")
+            self.assertEqual(server._clipboard_monitor._last_change, ("n",5))
+
+    async def test_photos_video_copy_opens_picker_without_requesting_data(self):
+        from handset import clipboard
+        types_only = {"pasteboard":{"metadata":{"nonce":"n","changeCount":9}, "items":[{
+            "types":["public.mpeg-4","com.apple.mobileslideshow.asset.localidentifier"],
+            "data":{"public.mpeg-4":{},"com.apple.mobileslideshow.asset.localidentifier":{}}}]}}
+
+        class Monitor:
+            def __init__(self, rsd, on_change, allow_full_pull):
+                self._on_change = on_change
+                self._last_change = ("n",8)
+                self._own_changes = []
+                self._recent_host_content = {}
+            async def start(self):
+                pass
+
+        service = AsyncMock()
+        service.__aenter__.return_value = service
+        service.get.return_value = types_only
+        server = SimpleNamespace(_clipboard_monitor=None, _rsd=object(),
+                                 _on_device_clipboard=Mock(), _stop_clipboard_monitor=AsyncMock())
+        state = {"enabled":True,"phase":"waiting","message":"","count":0,"pick":0}
+        with (patch.object(screen,"_SERVER",server), patch.object(screen,"_SYNC_STATE",state),
+              patch("pymobiledevice3.remote.core_device.pasteboard_service.PasteboardMonitor",Monitor),
+              patch("pymobiledevice3.remote.core_device.pasteboard_service.PasteboardService",return_value=service),
+              patch.object(clipboard,"_windows_clipboard") as pc):
+            await screen._configure_clipboard_sync(server,True)
+            await server._clipboard_monitor._check()
+            await server._clipboard_monitor._check()  # same change: picker is not reopened
+        from pymobiledevice3.remote.core_device.pasteboard_service import POLICY_ALL_PROMISED
+        self.assertEqual(service.get.call_count, 2)
+        for request in service.get.call_args_list:
+            self.assertEqual(request.kwargs["data_policy"], POLICY_ALL_PROMISED)
+        self.assertEqual((state["phase"], state["pick"]), ("pick-video", 1))
+        pc.assert_not_called()
+
     async def test_native_copy_monitor_ignores_startup_and_transfers_new_content(self):
         from handset import clipboard
         from pymobiledevice3.remote.core_device.pasteboard_service import PasteboardContent

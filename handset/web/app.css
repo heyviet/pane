@@ -675,3 +675,80 @@ button:active { transform: scale(0.98); }
 }
 
 .foot p { margin: 0; }
+
+.video-picker {
+  width: min(760px, calc(100vw - 32px));
+  height: min(820px, calc(100vh - 48px));
+  padding: 18px;
+  flex-direction: column;
+  color: var(--text);
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+}
+.video-picker[open] { display: flex; }
+.video-picker::backdrop { background: rgba(0, 0, 0, 0.6); }
+.video-picker-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0 -6px;
+  padding: 0 6px;
+}
+.video-section + .video-section { margin-top: 16px; }
+.video-section h3 {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0 0 8px;
+  padding: 6px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--bg-elevated);
+}
+.video-picker-head {
+  flex: none;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin: 0 0 14px;
+}
+.video-picker-head h2 { margin: 0; font-size: 17px; }
+.video-picker-head .fine { margin-top: 4px; }
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.video-tile {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 0;
+  overflow: hidden;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.video-tile:hover:not(:disabled), .video-tile:focus-visible { background: var(--surface-hover); border-color: var(--accent); }
+.video-tile:disabled { cursor: progress; opacity: 0.55; }
+.video-tile.is-busy { opacity: 1; border-color: var(--accent); }
+.video-tile img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  background: var(--surface);
+}
+.video-tile img.is-missing { visibility: hidden; }
+.video-tile-meta { padding: 6px 8px; font-size: 12px; color: var(--muted); }

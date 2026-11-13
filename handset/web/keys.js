@@ -40,6 +40,11 @@
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || 'Clipboard action failed. Try again.');
         onStatus(result.message);
+        if (result.pickVideo) {
+          // Photos video copies are chosen in Pane's picker (the mirror runs in a frame).
+          window.dispatchEvent(new CustomEvent('pane-pick-video'));
+          if (window.parent !== window) window.parent.postMessage({type: 'pane-pick-video'}, location.origin);
+        }
       }).catch(onError);
       return chain;
     };

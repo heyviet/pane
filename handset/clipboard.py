@@ -7,7 +7,8 @@ import time
 import struct
 import uuid
 from pathlib import Path
-from handset.video_clipboard import VideoContent, video_from_files
+from handset.phone_videos import PhotosVideoCopy, valid_path
+from handset.video_clipboard import EXTENSION_TYPES, VideoContent, video_from_files
 
 _ACTION_LOCK = threading.Lock()
 MAX_IMAGE_BYTES = 32 * 1024 * 1024
@@ -154,10 +155,28 @@ def _shortcut(key):
     time.sleep(0.15)
 
 
-def clipboard_action(action):
+def _video_library():
+    from handset.screen import phone_video_library
+    return phone_video_library()
+
+
+def _fetch_video(path):
+    from handset.screen import fetch_phone_video
+    return fetch_phone_video(path)
+
+
+def clipboard_action(action, path=None):
     if action in {"sync-on", "sync-off", "sync-status"}:
         from handset.screen import clipboard_sync_status, set_clipboard_sync
         return clipboard_sync_status() if action == "sync-status" else set_clipboard_sync(action == "sync-on")
+    if action == "video-library":
+        return {"ok": True, **_video_library()}
+    if action == "pick-video":
+        # Streaming a large clip takes a while; hold the clipboard lock only to publish it.
+        local = _fetch_video(valid_path(path))
+        with _ACTION_LOCK:
+            _windows_clipboard(VideoContent(b"", EXTENSION_TYPES[local.suffix.lower()], local.name, local))
+        return {"ok": True, "message": f"{local.name} copied to PC. Paste into Explorer or an app that accepts video files."}
     with _ACTION_LOCK:
         if action in {"paste", "send"}:
             content = _windows_clipboard()
@@ -183,7 +202,10 @@ def clipboard_action(action):
         if action in {"copy", "cut", "get"}:
             if action != "get":
                 _shortcut(0x06 if action == "copy" else 0x1b)
-            video = _read_video()
+            try:
+                video = _read_video()
+            except PhotosVideoCopy as notice:
+                return {"ok": True, "pickVideo": True, "message": str(notice)}
             if video is not None:
                 _windows_clipboard(video)
                 return {"ok": True, "message": "iPhone video copied to PC. Paste into an app that accepts video files, or into Explorer to save it."}

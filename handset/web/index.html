@@ -116,6 +116,7 @@
             </div>
             <div class="control-row clipboard-row">
               <button type="button" class="ctl ctl-sm" data-clipboard="send">Send PC clipboard</button>
+              <button type="button" class="ctl ctl-sm" id="pick-video-open">Pick iPhone video…</button>
             </div>
             <p class="fine">Ctrl+C copies selected iPhone content to PC; Ctrl+V pastes PC content. To use iOS’s own Paste menu, click Send PC clipboard, then hold the left mouse button on the text field. Native Copy updates PC automatically when sync is on.</p>
             <p class="fine">Videos: copy one MP4, MOV or M4V file on PC, then paste into an iPhone app that accepts videos. Direct clips are limited to 32 MB. Videos copied to PC can be pasted into Explorer or apps that accept video files.</p>
@@ -240,8 +241,18 @@ pip install pymobiledevice3</code></pre>
       <p>Pane · MIT · Mirror and control your iPhone over USB or Wi‑Fi</p>
     </footer>
   </div>
+  <dialog id="video-picker" class="video-picker" aria-labelledby="video-picker-title">
+    <form method="dialog" class="video-picker-head">
+      <div>
+        <h2 id="video-picker-title">Copy an iPhone video to PC</h2>
+        <p class="fine" id="video-picker-note">Photos keeps copied videos on the iPhone. Choose the one you copied.</p>
+      </div>
+      <button type="submit" class="ctl ctl-sm" aria-label="Close">Close</button>
+    </form>
+    <div class="video-picker-body" id="video-picker-body"></div>
+  </dialog>
   <script src="/toast.js"></script>
-  <script src="/keys.js?v=clipboard-bridge-2"></script>
+  <script src="/keys.js?v=clipboard-bridge-3"></script>
   <script src="/app.js"></script>
   <script src="/files.js"></script>
 </body>

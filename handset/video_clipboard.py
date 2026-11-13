@@ -115,10 +115,16 @@ def video_from_snapshot(snapshot):
 
 async def read_video(rsd, snapshot=None):
     import asyncio
-    from pymobiledevice3.remote.core_device.pasteboard_service import PasteboardService, POLICY_PROMISE_SECONDARY
+    from handset.phone_videos import PhotosVideoCopy, is_photos_video
+    from pymobiledevice3.remote.core_device.pasteboard_service import (
+        PasteboardService, POLICY_ALL_PROMISED, POLICY_PROMISE_SECONDARY,
+    )
     async with PasteboardService(rsd) as service:
         if snapshot is None:
-            snapshot = await service.get(data_policy=POLICY_PROMISE_SECONDARY)
+            # Types first: Photos never provides a copied video's data, so asking for it would hang.
+            if is_photos_video(await asyncio.wait_for(service.get(data_policy=POLICY_ALL_PROMISED), 15)):
+                raise PhotosVideoCopy()
+            snapshot = await asyncio.wait_for(service.get(data_policy=POLICY_PROMISE_SECONDARY), 30)
         if not movie_types(snapshot):
             return None
         content = video_from_snapshot(snapshot)

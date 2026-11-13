@@ -500,6 +500,172 @@ document.querySelectorAll("[data-clipboard]").forEach((button) => {
   });
 });
 
+const videoPicker = document.querySelector("#video-picker");
+const videoPickerBody = document.querySelector("#video-picker-body");
+const videoPickerNote = document.querySelector("#video-picker-note");
+const VIDEO_REFRESH_MS = 4000;
+let lastPickCount = null;
+let videoPickerBusy = false;
+let videoRefreshTimer = null;
+let videoLibrarySignature = "";
+let thumbObserver = null;
+
+function formatSize(bytes) {
+  return bytes >= 1e9 ? `${(bytes / 1e9).toFixed(1)} GB` : `${Math.max(0.1, bytes / 1e6).toFixed(1)} MB`;
+}
+
+function formatWhen(seconds, withTime = true) {
+  if (!seconds) return "";
+  const date = new Date(seconds * 1000);
+  return withTime
+    ? date.toLocaleString([], {dateStyle: "medium", timeStyle: "short"})
+    : date.toLocaleDateString([], {dateStyle: "medium"});
+}
+
+function recentReason(video) {
+  // Whichever happened last: Photos opened it, or it arrived on the iPhone.
+  if (video.opened && video.opened >= video.added) return `Opened ${formatWhen(video.opened)}`;
+  return `${video.source === "iCloud" ? "Downloaded" : "Added"} ${formatWhen(video.added)}`;
+}
+
+async function pickVideo(video, button) {
+  if (videoPickerBusy) return;
+  videoPickerBusy = true;
+  videoPicker.querySelectorAll(".video-tile").forEach((b) => { b.disabled = true; });
+  button.classList.add("is-busy");
+  videoPickerNote.textContent = `Copying ${video.name} (${formatSize(video.size)}) from the iPhone…`;
+  window.PaneToast.show(`Copying ${video.name} from the iPhone…`, "", "clipboard");
+  try {
+    const result = await postJson("/api/clipboard/action", {action: "pick-video", path: video.path});
+    window.PaneToast.show(result.message, "", "clipboard");
+    videoPicker.close();
+  } catch (error) {
+    videoPickerNote.textContent = error.message;
+    window.PaneToast.show(error.message, "warn", "clipboard");
+  } finally {
+    videoPickerBusy = false;
+    button.classList.remove("is-busy");
+    videoPicker.querySelectorAll(".video-tile").forEach((b) => { b.disabled = false; });
+  }
+}
+
+function videoTile(video, caption) {
+  const item = document.createElement("li");
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "video-tile";
+  const thumb = document.createElement("img");
+  thumb.alt = "";
+  // Loaded when scrolled into view: the library can hold a thousand videos.
+  thumb.dataset.src = `/api/phone-video-thumb?path=${encodeURIComponent(video.path)}`;
+  thumb.addEventListener("error", () => thumb.classList.add("is-missing"), {once: true});
+  const label = document.createElement("span");
+  label.className = "video-tile-meta";
+  label.textContent = `${caption} · ${formatSize(video.size)}`;
+  button.setAttribute("aria-label", `${video.source} video recorded ${formatWhen(video.recorded)}, ${label.textContent}`);
+  button.title = `Recorded ${formatWhen(video.recorded)}`;
+  button.append(thumb, label);
+  button.addEventListener("click", () => pickVideo(video, button));
+  item.append(button);
+  thumbObserver.observe(thumb);
+  return item;
+}
+
+function videoSection(title, videos, caption) {
+  const section = document.createElement("section");
+  section.className = "video-section";
+  const heading = document.createElement("h3");
+  heading.textContent = title;
+  const grid = document.createElement("ul");
+  grid.className = "video-grid";
+  grid.append(...videos.map((video) => videoTile(video, caption(video))));
+  section.append(heading, grid);
+  return section;
+}
+
+function renderVideoLibrary({recent, videos}) {
+  thumbObserver?.disconnect();
+  thumbObserver = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      entry.target.src = entry.target.dataset.src;
+      thumbObserver.unobserve(entry.target);
+    }
+  }, {root: videoPickerBody, rootMargin: "400px 0px"});
+  const scroll = videoPickerBody.scrollTop;
+  const sections = [];
+  if (recent.length) {
+    sections.push(videoSection("Recently added, downloaded or opened", recent, recentReason));
+  }
+  // Grouped by recording month, newest first, like the Photos library.
+  const months = new Map();
+  for (const video of videos) {
+    const key = new Date(video.recorded * 1000).toLocaleDateString([], {year: "numeric", month: "long"});
+    if (!months.has(key)) months.set(key, []);
+    months.get(key).push(video);
+  }
+  for (const [month, list] of months) {
+    sections.push(videoSection(month, list, (video) => formatWhen(video.recorded, false)));
+  }
+  videoPickerBody.replaceChildren(...sections);
+  videoPickerBody.scrollTop = scroll;
+}
+
+async function refreshVideoLibrary(initial = false) {
+  if (!videoPicker.open || videoPickerBusy) return;
+  try {
+    const library = await postJson("/api/clipboard/action", {action: "video-library"});
+    if (!videoPicker.open) return;
+    if (initial) {
+      videoPickerNote.textContent = library.videos.length
+        ? "Photos keeps copied videos on the iPhone. Choose the one you copied. iCloud downloads appear here as soon as they finish."
+        : "No videos found on the iPhone yet. Videos stored only in iCloud appear here once Photos has downloaded them.";
+    }
+    const signature = [...library.recent, ...library.videos].map((v) => v.path).join("|");
+    if (signature !== videoLibrarySignature) {
+      videoLibrarySignature = signature;
+      renderVideoLibrary(library);
+    }
+  } catch (error) {
+    if (initial) videoPickerNote.textContent = error.message;
+  }
+}
+
+function scheduleVideoRefresh() {
+  clearTimeout(videoRefreshTimer);
+  if (!videoPicker.open) return;
+  videoRefreshTimer = setTimeout(async () => {
+    if (!document.hidden) await refreshVideoLibrary();
+    scheduleVideoRefresh();
+  }, VIDEO_REFRESH_MS);
+}
+
+async function openVideoPicker() {
+  if (videoPicker.open) {
+    // A new copy while the picker is open: look again right away.
+    await refreshVideoLibrary();
+    return;
+  }
+  videoLibrarySignature = "";
+  videoPickerBody.replaceChildren();
+  videoPickerNote.textContent = "Reading the iPhone's videos… the first look can take a few seconds.";
+  videoPicker.showModal();
+  await refreshVideoLibrary(true);
+  scheduleVideoRefresh();
+}
+
+videoPicker.addEventListener("cancel", (event) => { if (videoPickerBusy) event.preventDefault(); });
+videoPicker.addEventListener("close", () => {
+  clearTimeout(videoRefreshTimer);
+  thumbObserver?.disconnect();
+});
+document.querySelector("#pick-video-open").addEventListener("click", openVideoPicker);
+window.addEventListener("pane-pick-video", openVideoPicker);
+window.addEventListener("message", (event) => {
+  if (event.origin === location.origin && event.source === screenView.contentWindow
+      && event.data?.type === "pane-pick-video") openVideoPicker();
+});
+
 const clipboardSyncButton = document.querySelector("#clipboard-sync");
 let clipboardSyncBusy = false;
 async function updateClipboardSync(action = "sync-status") {
@@ -512,6 +678,9 @@ async function updateClipboardSync(action = "sync-status") {
     clipboardSyncButton.textContent = `Sync iPhone → PC: ${result.enabled ? "On" : "Off"}`;
     document.querySelector("#clipboard-sync-note").textContent = result.message;
     if (action !== "sync-status") localStorage.setItem("handset-clipboard-sync", String(result.enabled));
+    // A native Copy of a Photos video: open the picker once per copy, not on page load.
+    if (lastPickCount !== null && result.pick > lastPickCount) openVideoPicker();
+    lastPickCount = result.pick ?? 0;
   } catch (error) {
     document.querySelector("#clipboard-sync-note").textContent = error.message;
   } finally {

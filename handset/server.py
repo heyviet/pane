@@ -41,6 +41,9 @@ class Handler(BaseHTTPRequestHandler):
             payload["wifi"] = {"paired": wifi_paired_udids()}
             self._json(payload)
             return
+        if path == "/api/phone-video-thumb":
+            self._phone_video_thumb()
+            return
         if path == "/api/screen":
             self._json(screen_status())
             return
@@ -73,7 +76,10 @@ class Handler(BaseHTTPRequestHandler):
                 payload = json.loads(self.rfile.read(length))
                 if not isinstance(payload, dict) or not isinstance(payload.get("action"), str):
                     raise ValueError("Invalid clipboard action.")
-                self._json(clipboard_action(payload["action"]))
+                path_arg = payload.get("path")
+                if path_arg is not None and not isinstance(path_arg, str):
+                    raise ValueError("Invalid clipboard action.")
+                self._json(clipboard_action(payload["action"], path_arg))
             except (ValueError, OSError, RuntimeError) as error:
                 self._json({"error": str(error)}, 502)
             return
@@ -114,6 +120,30 @@ class Handler(BaseHTTPRequestHandler):
             self._json(read_handset(udid))
         except MuxError as error:
             self._json({"udid": udid, "paired": False, "error": str(error)}, status=409)
+
+    def _phone_video_thumb(self) -> None:
+        from urllib.parse import parse_qs
+        from handset.phone_videos import valid_path
+        from handset.screen import phone_video_thumbnail
+        host = self.headers.get("Host", "")
+        if (urlparse("http://" + host).hostname not in {"127.0.0.1", "localhost", "::1"}
+                or self.headers.get("Sec-Fetch-Site") == "cross-site"):
+            self._json({"error": "Open Pane through localhost."}, 403)
+            return
+        try:
+            data = phone_video_thumbnail(valid_path(parse_qs(urlparse(self.path).query).get("path", [""])[0]))
+        except (ValueError, OSError, RuntimeError) as error:
+            self._json({"error": str(error)}, 404)
+            return
+        if not data:
+            self._json({"error": "No thumbnail."}, 404)
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "image/jpeg")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "private, max-age=3600")
+        self.end_headers()
+        self.wfile.write(data)
 
     def _json(self, payload: dict, status: int = 200) -> None:
         body = json.dumps(payload).encode("utf-8")
