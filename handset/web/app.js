@@ -131,19 +131,59 @@ function wireDrawer() {
   });
 }
 
+// Resolves true once the reloaded mirror page shows a picture ("Live"), false
+// if it reports a problem or nothing arrives in time. The mirror page reports
+// its progress as pane-toast messages in the "stream" category.
+function waitForPicture(timeoutMs = 15000) {
+  return new Promise((resolve) => {
+    const done = (ok) => {
+      window.removeEventListener("message", onMessage);
+      clearTimeout(timer);
+      resolve(ok);
+    };
+    const onMessage = (event) => {
+      const data = event.data;
+      if (event.origin !== location.origin || data?.type !== "pane-toast" || data.category !== "stream") return;
+      if (data.dismiss) done(true);
+      else if (data.tone === "warn") done(false);
+    };
+    const timer = setTimeout(() => done(false), timeoutMs);
+    window.addEventListener("message", onMessage);
+  });
+}
+
+function connectionSummary(state) {
+  const count = (state.devices || []).length;
+  if (transport === "wifi") {
+    return wifiPaired.length ? "Wi‑Fi is set up. Press Start mirroring to connect."
+      : "Wi‑Fi isn't set up yet. Plug in the cable once and press Set up Wi‑Fi.";
+  }
+  if (!count) return "No iPhone on the cable. Plug it in, unlock it and tap Trust.";
+  return `${count === 1 ? "iPhone" : `${count} iPhones`} found on the cable. Press Start mirroring.`;
+}
+
+// Refresh re-checks the connection (cable, Wi‑Fi pairing, Developer Mode) and,
+// while mirroring, reconnects this window to the running stream. It doesn't
+// touch the stream on the iPhone: Restart screen does that.
 async function refreshConnection() {
+  if (refresh.classList.contains("is-busy")) return;
   refresh.classList.add("is-busy");
   try {
     const state = await load();
-    if (!state) return;
-    if (workspace.classList.contains("is-live")) {
-      // Reconnect the viewer to the running stream; it asks for a fresh keyframe.
-      reloadMirrorIframe();
-      notify("Connection refreshed. Reconnecting to the iPhone screen…");
+    if (!state) {
+      notify("Refresh failed: Pane's server isn't responding. Quit and reopen Pane.", "warn");
+      return;
+    }
+    if (!workspace.classList.contains("is-live")) {
+      notify(`Connection checked. ${connectionSummary(state)}`);
+      return;
+    }
+    const picture = waitForPicture();
+    reloadMirrorIframe();
+    if (await picture) {
+      notify("Refreshed: reconnected to the iPhone screen.");
     } else {
-      const count = (state.devices || []).length;
-      notify(count ? `Connection refreshed. ${count === 1 ? "1 iPhone" : `${count} iPhones`} on the cable.`
-        : "Connection refreshed. No iPhone on the cable.");
+      notify("Refreshed, but no picture came back. Try Restart screen.", "warn");
     }
   } finally {
     refresh.classList.remove("is-busy");
@@ -464,8 +504,10 @@ async function restartMirror() {
   try {
     await postJson("/api/screen/restart", { udid: selectedUdid });
     await new Promise((r) => setTimeout(r, 1500));
+    const picture = waitForPicture(20000);
     reloadMirrorIframe();
-    notify("Restart sent. Use Restart screen again if the picture stays black.");
+    if (await picture) notify("Screen restarted.");
+    else notify("The screen restarted, but no picture came back. Press Restart screen again.", "warn");
   } catch (error) {
     notify(error.message, "warn");
   } finally {
