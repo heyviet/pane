@@ -275,7 +275,7 @@ async def _configure_clipboard_sync(server, enabled):
                     _SYNC_STATE.update(phase="watching", message=result, count=_SYNC_STATE["count"] + 1)
         except Exception:
             if active():
-                _sync_state(phase="error", message="Could not copy the iPhone clipboard to PC. Try Get iPhone clipboard.")
+                _sync_state(phase="error", message="Could not copy the iPhone clipboard to PC. Select it again on the iPhone and press Ctrl+C.")
 
     def changed(content):
         server._on_device_clipboard(content)
@@ -331,7 +331,7 @@ async def _configure_clipboard_sync(server, enabled):
             except asyncio.TimeoutError:
                 monitor._last_change = change
                 if active():
-                    _sync_state(phase="error", message="The iPhone app never provided its copied content. Try Get iPhone clipboard.")
+                    _sync_state(phase="error", message="The iPhone app never provided its copied content. Select it again on the iPhone and press Ctrl+C.")
                 return
             video_error = None
             if movie_types(snapshot):
@@ -359,7 +359,7 @@ async def _configure_clipboard_sync(server, enabled):
             except asyncio.TimeoutError:
                 # Not recorded as seen, so the next notification looks again.
                 if active():
-                    _sync_state(phase="error", message="The iPhone app took too long to provide its copy. Try Get iPhone clipboard.")
+                    _sync_state(phase="error", message="The iPhone app took too long to provide its copy. Select it again on the iPhone and press Ctrl+C.")
                 return
             monitor._last_change = change
             now = time.monotonic()

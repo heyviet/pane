@@ -78,10 +78,10 @@ Click the destination inside the mirrored iPhone before typing or pasting. Pane�
 
 The Windows server bridges the clipboards directly, so browser clipboard permission is not required.
 
-- **PC → iPhone:** copy text or image pixels on PC, then press **Ctrl+V** in the mirrored destination, or click **Paste PC clipboard**.
-- **iPhone → PC:** select content on iPhone and press **Ctrl+C**, or click **Copy selection to PC**. If you already chose Copy in iOS’s native menu, click **Get iPhone clipboard** instead.
+- **PC → iPhone:** copy text or image pixels on PC, then press **Ctrl+V** in the mirrored destination.
+- **iPhone → PC:** select content on iPhone and press **Ctrl+C**. To use Copy in iOS’s native menu instead, turn on **Sync iPhone → PC** (below).
 - **Native Copy sync:** turn **Sync iPhone → PC** on to transfer new native iOS copies automatically while mirroring is connected. The toggle remembers your choice in that browser. Sync ignores the existing clipboard when monitoring starts and changes Pane itself sent to the phone. Its status appears below the toggle; turn it off to stop automatic PC clipboard updates.
-- **Native Paste menu:** click **Send PC clipboard** to update the phone clipboard without inserting anything, then hold on the destination and choose Paste. **Paste iPhone clipboard** requests Paste without replacing the phone clipboard with PC content.
+- **Native Paste menu:** click **Send PC clipboard** to update the phone clipboard without inserting anything, then hold on the destination and choose Paste. Use this for apps that ignore Ctrl+V.
 
 Clipboard notifications appear at the browser’s bottom-right, outside the phone display, with a dismiss button. Completed messages clear after six seconds; warnings remain until dismissed. Notifications also work in full-screen mode.
 
@@ -96,14 +96,14 @@ Copy the image itself when possible. Notes/Safari can place pictures inside rich
 #### Direct video paste
 
 1. In Windows Explorer, copy **one MP4, MOV or M4V file**.
-2. Focus a destination inside the mirrored iPhone that accepts video attachments, then press **Ctrl+V** or **Paste PC clipboard**.
+2. Focus a destination inside the mirrored iPhone that accepts video attachments, then press **Ctrl+V**.
 3. To use the iOS menu instead, choose **Send PC clipboard**, then native Paste.
 
 The original movie bytes are transferred without transcoding. The destination app must accept the movie format and codec; a successful clipboard transfer cannot make an app support video paste.
 
-**Photos videos:** Photos’ ••• → Copy on a video never hands the movie to a PC (iOS only promises it). When Pane sees such a copy, through native Copy sync, Ctrl+C or **Get iPhone clipboard**, it opens a picker of recent camera-roll videos with thumbnails. Pick the one you copied, and Pane streams the original file and puts it on the Windows clipboard. **Pick iPhone video…** opens the picker any time. iOS doesn’t tell Pane which video was copied, so the picker shows two views. **Recently added, downloaded or opened** lists videos recorded, saved, downloaded from iCloud or opened in Photos in the last day; an older video you just opened in Photos usually appears here. Below it, **all videos on the iPhone** are listed newest recording first and grouped by month, like the Photos library. The list includes camera-roll videos and iCloud Photos originals downloaded to the iPhone, and it refreshes while open. With Optimize iPhone Storage, copying an older video makes Photos download it, and it appears as soon as the download finishes. Videos that exist only in iCloud appear once Photos has downloaded them.
+**Photos videos:** Photos’ ••• → Copy on a video never hands the movie to a PC (iOS only promises it). When Pane sees such a copy, through native Copy sync or Ctrl+C, it opens a picker of recent camera-roll videos with thumbnails. Pick the one you copied, and Pane streams the original file and puts it on the Windows clipboard. **Pick iPhone video…** opens the picker any time. iOS doesn’t tell Pane which video was copied, so the picker shows two views. **Recently added, downloaded or opened** lists videos recorded, saved, downloaded from iCloud or opened in Photos in the last day; an older video you just opened in Photos usually appears here. Below it, **all videos on the iPhone** are listed newest recording first and grouped by month, like the Photos library. The list includes camera-roll videos and iCloud Photos originals downloaded to the iPhone, and it refreshes while open. With Optimize iPhone Storage, copying an older video makes Photos download it, and it appears as soon as the download finishes. Videos that exist only in iCloud appear once Photos has downloaded them.
 
-For **iPhone → PC**, copy the video itself and use Ctrl+C, **Get iPhone clipboard**, or native Copy with sync enabled. Pane extracts inline movies from Notes’ own rich-text archives and gives video data priority over thumbnails. Received clips are saved in `~/Downloads/Pane/Clipboard videos` and placed on the Windows clipboard as file references. Paste into Explorer to copy the file, or into a PC app that accepts video-file paste. Chat apps may require attaching or dragging in the saved file instead of Ctrl+V. Clips remain on disk after Pane exits.
+For **iPhone → PC**, copy the video itself and use Ctrl+C, or native Copy with sync enabled. Pane extracts inline movies from Notes’ own rich-text archives and gives video data priority over thumbnails. Received clips are saved in `~/Downloads/Pane/Clipboard videos` and placed on the Windows clipboard as file references. Paste into Explorer to copy the file, or into a PC app that accepts video-file paste. Chat apps may require attaching or dragging in the saved file instead of Ctrl+V. Clips remain on disk after Pane exits.
 
 Some apps provide only a device-local file reference or a share link instead of movie bytes. Pane does not follow those references; use the Files workflow for those clips.
 
@@ -169,7 +169,7 @@ Open **http://127.0.0.1:8765** in Chrome or Edge. Keep the server process runnin
 
   This reveals the switch; it does not enable Developer Mode or restart the phone automatically.
 - **Switching from USB to Wi-Fi:** choose Wi-Fi and click Start mirroring. Pane closes the previous stream/tunnel before opening the selected transport. A completed Wi-Fi pairing does not by itself change an active USB stream.
-- **Native Copy is not reaching PC:** enable Sync iPhone → PC, or use Get iPhone clipboard. Check the sync status below the toggle. A video returned to PC is a file, not pasted text; use an attachment/file drop if the destination app requires one.
+- **Native Copy is not reaching PC:** enable Sync iPhone → PC, or select the content again and press Ctrl+C. Check the sync status below the toggle. A video returned to PC is a file, not pasted text; use an attachment/file drop if the destination app requires one.
 - **After updating frontend files:** refresh Pane with Ctrl+Shift+R. Python server changes require restarting the server; reconnect mirroring and re-enable sharing afterward.
 - **Frozen picture:** use Restart screen. Keep the phone unlocked and connected to the chosen transport.
 
