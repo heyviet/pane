@@ -23,6 +23,9 @@
 #pane-toast[data-tone="warn"] { color: #ffb85c; }
 #pane-toast-actions { display: flex; gap: 6px; }
 #pane-toast .pane-toast-action:has(svg) { padding: 0; }
+#pane-toast .pane-toast-action.is-danger { color: #ff6961; }
+#pane-toast .pane-toast-action.is-armed { color: #fff; background: #d70015; border-color: #ff453a; }
+#pane-toast .pane-toast-action.is-armed:hover { background: #ff3b30; }
 #pane-toast-actions:empty { display: none; }
 #pane-toast .pane-toast-action {
   width: auto;

@@ -27,3 +27,10 @@ body {
   outline: none;
   image-rendering: high-quality;
 }
+
+/* Zoomed in full screen: scroll (wheel or scrollbars) to see the rest. */
+body.zoomed {
+  overflow: auto;
+  justify-content: safe center;
+  align-items: safe center;
+}

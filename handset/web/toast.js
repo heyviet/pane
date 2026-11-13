@@ -36,10 +36,10 @@
     currentCategory = category;
     const notification = element();
     notification.querySelector("#pane-toast-text").textContent = text;
-    notification.querySelector("#pane-toast-actions").replaceChildren(...(Array.isArray(actions) ? actions : []).map(({label, icon, run}) => {
+    notification.querySelector("#pane-toast-actions").replaceChildren(...(Array.isArray(actions) ? actions : []).map(({label, icon, run, tone}) => {
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "pane-toast-action";
+      button.className = "pane-toast-action" + (tone === "danger" ? " is-danger" : "");
       if (icon) {
         button.innerHTML = icon;
         button.title = label;
@@ -47,7 +47,7 @@
       } else {
         button.textContent = label;
       }
-      button.addEventListener("click", () => run());
+      button.addEventListener("click", () => run(button));
       return button;
     }));
     notification.dataset.tone = tone;

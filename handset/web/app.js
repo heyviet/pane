@@ -531,7 +531,26 @@ const ICONS = {
   open: ICON('<path d="M9 2.5h4.5V7M13.5 2.5 7.5 8.5M12 9.5v3a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3"/>'),
   folder: ICON('<path d="M1.5 4.5a1 1 0 0 1 1-1h3.5l1.5 1.5h6a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z"/>'),
   copy: ICON('<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/>'),
+  trash: ICON('<path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9a1 1 0 0 0 1 .9h4.6a1 1 0 0 0 1-.9L12 4M6.5 6.5v5M9.5 6.5v5"/>'),
 };
+
+// Delete asks twice: the first click arms the button (red, "Click again to
+// delete"), a second click within four seconds sends the file to the Recycle Bin.
+function confirmDelete(button, remove) {
+  if (button.classList.contains("is-armed")) {
+    clearTimeout(button._disarm);
+    remove();
+    return;
+  }
+  button.classList.add("is-armed");
+  button.title = "Click again to delete";
+  button.setAttribute("aria-label", "Click again to delete the screenshot");
+  button._disarm = setTimeout(() => {
+    button.classList.remove("is-armed");
+    button.title = "Delete screenshot";
+    button.setAttribute("aria-label", "Delete screenshot");
+  }, 4000);
+}
 
 async function copyImage(blob, actions) {
   try {
@@ -577,6 +596,17 @@ async function screenshot() {
       { label: "Open", icon: ICONS.open, run: () => reveal("open") },
       { label: "Show in folder", icon: ICONS.folder, run: () => reveal("folder") },
       { label: "Copy to clipboard", icon: ICONS.copy, run: () => copyImage(blob, actions) },
+      {
+        label: "Delete screenshot", icon: ICONS.trash, tone: "danger",
+        run: (button) => confirmDelete(button, async () => {
+          try {
+            await postJson("/api/screenshot/open", { action: "delete", path: result.path });
+            notify(`${result.name} moved to the Recycle Bin.`);
+          } catch (error) {
+            notify(error.message, "warn");
+          }
+        }),
+      },
     ];
     window.PaneToast.show(`Screenshot saved as ${result.name}.`, "", "screen", actions);
   } catch (error) {
@@ -625,6 +655,23 @@ function toggleFullscreen() {
     return;
   }
   phoneScreen.requestFullscreen?.().catch(() => {});
+}
+
+// Full screen shows the whole picture (contain), with its own zoom from there.
+// Outside full screen the picture fills the phone screen (cover), and zoom
+// scales the phone instead.
+let fsZoom = 1;
+
+function applyFit() {
+  const full = document.fullscreenElement === phoneScreen;
+  mirrorMessage("fit", full ? { mode: "contain", zoom: fsZoom } : { mode: "cover", zoom: 1 });
+  document.querySelector("#fs-zoom-reset").textContent = `${Math.round(fsZoom * 100)}%`;
+}
+
+function setFsZoom(value) {
+  fsZoom = Math.max(1, Math.min(ZOOM_MAX, value));
+  if (Math.abs(fsZoom - 1) < 0.02) fsZoom = 1;
+  applyFit();
 }
 
 // The mirror page reports its picture's shape so the frame can turn sideways
@@ -893,7 +940,14 @@ function wireRemoteControls() {
   });
   document.querySelector("#fullscreen")?.addEventListener("click", toggleFullscreen);
   document.querySelector("#fs-exit")?.addEventListener("click", toggleFullscreen);
+  document.querySelector("#fs-zoom-in")?.addEventListener("click", () => setFsZoom(fsZoom * ZOOM_STEP));
+  document.querySelector("#fs-zoom-out")?.addEventListener("click", () => setFsZoom(fsZoom / ZOOM_STEP));
+  document.querySelector("#fs-zoom-reset")?.addEventListener("click", () => setFsZoom(1));
+  // A reloaded mirror page starts in cover mode: tell it again if full screen.
+  screenView.addEventListener("load", applyFit);
   document.addEventListener("fullscreenchange", () => {
+    fsZoom = 1;
+    applyFit();
     const btn = document.querySelector("#fullscreen");
     btn?.setAttribute("aria-label", document.fullscreenElement ? "Exit full screen" : "Full screen");
     btn?.setAttribute("title", document.fullscreenElement ? "Exit full screen (Esc)" : "Full screen touch view (Esc to exit)");

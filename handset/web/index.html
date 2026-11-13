@@ -45,7 +45,15 @@
               </div>
               <iframe id="screen-view" class="screen-frame" title="iPhone screen" allow="clipboard-read; clipboard-write" hidden src="about:blank"></iframe>
               <div class="iphone-notch" aria-hidden="true"><span class="notch-cam"></span></div>
-              <button type="button" class="fs-exit" id="fs-exit" title="Exit full screen (Esc)">Exit full screen</button>
+              <div class="fs-tools" role="toolbar" aria-label="Full screen view">
+                <button type="button" class="ctl ctl-icon" id="fs-zoom-out" title="Zoom out" aria-label="Zoom out">−</button>
+                <button type="button" class="ctl ctl-icon zoom-level" id="fs-zoom-reset" title="Fit to screen">100%</button>
+                <button type="button" class="ctl ctl-icon" id="fs-zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+                <span class="view-sep" aria-hidden="true"></span>
+                <button type="button" class="ctl ctl-icon" id="fs-exit" title="Exit full screen (Esc)" aria-label="Exit full screen">
+                  <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M6 2v4H2M14 6h-4V2M10 14v-4h4M2 10h4v4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -1,3 +1,4 @@
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -50,6 +51,25 @@ class ScreenshotTests(unittest.TestCase):
         with patch("subprocess.Popen") as popen:
             screenshots.show_in_folder(saved)
         self.assertEqual(popen.call_args.args[0], f'explorer /select,"{Path(saved).resolve()}"')
+
+    def test_delete_recycles_only_saved_files_and_forgets_them(self):
+        other = self.folder / "other.png"
+        other.write_bytes(PNG)
+        removed = []
+        with self.assertRaises(ValueError):
+            screenshots.delete(str(other), remove=removed.append)
+        saved = screenshots.save(PNG, "shot.png", ask=self.ask)["path"]
+        screenshots.delete(saved, remove=removed.append)
+        self.assertEqual(removed, [Path(saved).resolve()])
+        with self.assertRaises(ValueError):
+            screenshots.open_file(saved)
+
+    @unittest.skipUnless(os.environ.get("PANE_TEST_RECYCLE"), "leaves a file in the Recycle Bin; set PANE_TEST_RECYCLE=1")
+    def test_recycle_moves_a_real_file_to_the_recycle_bin(self):
+        doomed = self.folder / "Pane recycle test.png"
+        doomed.write_bytes(PNG)
+        screenshots.recycle(doomed)
+        self.assertFalse(doomed.exists())
 
     def test_moved_screenshot_is_reported(self):
         saved = screenshots.save(PNG, "shot.png", ask=self.ask)["path"]

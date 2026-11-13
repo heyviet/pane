@@ -250,19 +250,34 @@ body.is-live { --reserve: 60px; }
 .is-landscape[data-turn="cw"] .key-voldown { bottom: auto; top: calc(var(--h) * -0.006); left: 61%; }
 .is-landscape[data-turn="cw"] .key-side    { top: auto; bottom: calc(var(--h) * -0.006); left: 66%; }
 
-.fs-exit {
+/* Zoom and exit controls, shown only in full screen. */
+.fs-tools {
   display: none;
   position: absolute;
   top: 16px;
   right: 16px;
   z-index: 5;
-  padding: 8px 14px;
-  font-size: 13px;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 999px;
-  backdrop-filter: blur(8px);
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  background: rgba(12, 12, 18, 0.82);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  backdrop-filter: blur(16px);
+}
+
+.fs-tools .ctl-icon {
+  display: grid;
+  place-items: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 8px;
+}
+
+.fs-tools .zoom-level {
+  min-width: 56px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 .iphone-screen:fullscreen {
@@ -271,7 +286,7 @@ body.is-live { --reserve: 60px; }
 }
 
 .iphone-screen:fullscreen .iphone-notch { display: none; }
-.iphone-screen:fullscreen .fs-exit { display: block; }
+.iphone-screen:fullscreen .fs-tools { display: flex; }
 
 .placeholder {
   position: absolute;

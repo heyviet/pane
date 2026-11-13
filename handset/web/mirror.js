@@ -3,6 +3,18 @@ const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
 
 let visualRotation = 0;
+// How the picture fits its frame: "cover" fills the phone screen (which Pane
+// shapes to the picture), "contain" shows all of it (full screen). viewZoom
+// scales it further; Pane only zooms here in full screen.
+let fitMode = "cover";
+let viewZoom = 1;
+// Pixel size of the streamed display ({width, height} from the server), or
+// null. The encoder pads frames up to a multiple of 16 without signalling it
+// (a 1206-wide iPhone arrives 1216 wide, with a black strip on the right), so
+// only this content rectangle is drawn.
+let displaySize = null;
+// Clockwise degrees that turn the display's frames upright, from the server.
+let displayRotation = null;
 
 let pendingFrame = null;
 let rafScheduled = false;
@@ -46,10 +58,10 @@ function fitCanvas() {
   const rect = parent.getBoundingClientRect();
   const naturalW = canvas.width;
   const naturalH = canvas.height;
-  // Cover, not contain: the phone screen is shaped to the picture, so this
-  // fills it edge to edge, trimming at most a pixel of rounding.
-  const base = Math.max(rect.width / naturalW, rect.height / naturalH);
-  const scale = base;
+  // Cover fills the phone screen edge to edge (it is shaped to the picture,
+  // so at most a pixel of rounding is trimmed); contain shows all of it.
+  const fit = fitMode === "contain" ? Math.min : Math.max;
+  const scale = fit(rect.width / naturalW, rect.height / naturalH) * viewZoom;
   canvas.style.width = `${naturalW * scale}px`;
   canvas.style.height = `${naturalH * scale}px`;
   postView();
@@ -242,6 +254,11 @@ window.addEventListener("message", (e) => {
     visualRotation = (visualRotation + (d.deg || 0)) % 360;
     if (lastFrame) drawFrame(lastFrame);
     fitCanvas();
+  } else if (d.cmd === "fit") {
+    fitMode = d.mode === "contain" ? "contain" : "cover";
+    viewZoom = typeof d.zoom === "number" && d.zoom > 0 ? d.zoom : 1;
+    document.body.classList.toggle("zoomed", viewZoom > 1);
+    fitCanvas();
   } else if (d.cmd === "reload") {
     beginRun();
   }
@@ -264,7 +281,7 @@ async function fetchCodecWithRetry() {
         continue;
       }
       const description = Uint8Array.from(atob(info.description), (c) => c.charCodeAt(0));
-      return { codec: info.codec.trim(), description };
+      return { codec: info.codec.trim(), description, display: info.display };
     } catch (err) {
       lastErr = err.message || String(err);
     }
@@ -272,10 +289,35 @@ async function fetchCodecWithRetry() {
   throw new Error(lastErr || "codec unreachable");
 }
 
+function setDisplay(display) {
+  displaySize = display && display.width > 0 && display.height > 0 ? display : null;
+  displayRotation = display && typeof display.rotation === "number" ? display.rotation : null;
+}
+
+// The part of a frame that holds the display, without the encoder's padding.
+// The display size is in its native orientation; a frame the iPhone rendered
+// sideways has it the other way round.
+function contentSize(fw, fh) {
+  if (!displaySize) return [fw, fh];
+  let { width, height } = displaySize;
+  if ((fw > fh) !== (width > height)) [width, height] = [height, width];
+  const scale = Math.min(1, fw / width);
+  return [Math.min(fw, Math.round(width * scale)), Math.min(fh, Math.round(height * scale))];
+}
+
+// Turn the picture upright when the server says the display is rotated but
+// the frames still come in the display's native orientation. An iPhone that
+// re-renders in landscape already sends upright frames (no turn needed).
+function applyDisplayRotation(f) {
+  if (displayRotation === null || !displaySize) return;
+  const frameLandscape = f.displayWidth > f.displayHeight;
+  const nativeLandscape = displaySize.width > displaySize.height;
+  visualRotation = frameLandscape === nativeLandscape ? displayRotation : 0;
+}
+
 function drawFrame(f) {
   const sideways = Math.abs(visualRotation % 180) === 90;
-  const fw = f.displayWidth;
-  const fh = f.displayHeight;
+  const [fw, fh] = contentSize(f.displayWidth, f.displayHeight);
   const targetW = sideways ? fh : fw;
   const targetH = sideways ? fw : fh;
   if (targetW !== canvas.width || targetH !== canvas.height || !pictureSized) {
@@ -291,7 +333,7 @@ function drawFrame(f) {
   ctx.save();
   ctx.translate(dstW / 2, dstH / 2);
   if (visualRotation) ctx.rotate((visualRotation * Math.PI) / 180);
-  ctx.drawImage(f, -fpW / 2, -fpH / 2, fpW, fpH);
+  ctx.drawImage(f, 0, 0, fw, fh, -fpW / 2, -fpH / 2, fpW, fpH);
   ctx.restore();
 }
 
@@ -301,8 +343,11 @@ function drawPending() {
   pendingFrame = null;
   if (!f) return;
   const landscape = f.displayWidth > f.displayHeight;
-  if (lastFrameLandscape !== null && landscape !== lastFrameLandscape && visualRotation !== 0) {
-    visualRotation = 0;
+  if (landscape !== lastFrameLandscape) {
+    // The iPhone turned (or this is the first frame): drop a manual rotation
+    // and follow what the server says about the display.
+    if (lastFrameLandscape !== null) visualRotation = 0;
+    applyDisplayRotation(f);
   }
   lastFrameLandscape = landscape;
   try {
@@ -336,10 +381,11 @@ async function run(generation) {
     }
   }, 1000);
 
-  const { codec, description } = await fetchCodecWithRetry();
+  const { codec, description, display } = await fetchCodecWithRetry();
   if (generation !== runGeneration) return;
+  setDisplay(display);
 
-  const decoderConfig = { codec, description, optimizeForLatency: true };
+  let decoderConfig = { codec, description, optimizeForLatency: true };
   const support = await VideoDecoder.isConfigSupported({ codec, description });
   if (!support.supported) {
     setStatus("This browser cannot decode the iPhone video stream.", "warn");
@@ -429,6 +475,41 @@ async function run(generation) {
       const type = buf[4];
       const data = buf.slice(5, 4 + len);
       buf = buf.subarray(4 + len);
+
+      // 3 = new decoder config (JSON, as /codec): the stream changed, and the
+      // next key frame has new parameters. 4 = the display turned: {rotation}.
+      // Both are messages, not video: never hand them to the decoder.
+      if (type === 4) {
+        try {
+          displayRotation = JSON.parse(new TextDecoder().decode(data)).rotation;
+          if (lastFrame) {
+            applyDisplayRotation(lastFrame);
+            drawFrame(lastFrame);
+            fitCanvas();
+          }
+        } catch (_) {}
+        continue;
+      }
+      if (type === 3) {
+        try {
+          const info = JSON.parse(new TextDecoder().decode(data));
+          decoderConfig = {
+            codec: info.codec.trim(),
+            description: Uint8Array.from(atob(info.description), (c) => c.charCodeAt(0)),
+            optimizeForLatency: true,
+          };
+          setDisplay(info.display);
+          lastFrameLandscape = null;
+          try {
+            decoder.close();
+          } catch (_) {}
+          decoder = buildDecoder();
+          decoder.configure(decoderConfig);
+          gotKey = false;
+          needsResync = false;
+        } catch (_) {}
+        continue;
+      }
 
       if (type === 2) {
         try {

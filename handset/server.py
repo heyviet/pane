@@ -147,10 +147,12 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < length <= 4096:
                 raise ValueError("Invalid screenshot request.")
             payload = json.loads(self.rfile.read(length))
-            if not isinstance(payload, dict) or payload.get("action") not in {"open", "folder"}:
+            if not isinstance(payload, dict) or payload.get("action") not in {"open", "folder", "delete"}:
                 raise ValueError("Invalid screenshot request.")
             if payload["action"] == "open":
                 screenshots.open_file(payload.get("path"))
+            elif payload["action"] == "delete":
+                screenshots.delete(payload.get("path"))
             else:
                 screenshots.show_in_folder(payload.get("path"))
             self._json({"ok": True})

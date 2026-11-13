@@ -122,3 +122,36 @@ def show_in_folder(path: str) -> None:
     # "/select,C:\My Pictures\shot.png" token when the path has spaces, and Explorer then
     # falls back to opening Documents.
     subprocess.Popen(f'explorer /select,"{_known(path)}"')
+
+
+class _SHFILEOPSTRUCTW(ctypes.Structure):
+    _fields_ = [
+        ("hwnd", wintypes.HWND), ("wFunc", wintypes.UINT), ("pFrom", wintypes.LPCWSTR),
+        ("pTo", wintypes.LPCWSTR), ("fFlags", wintypes.WORD), ("fAnyOperationsAborted", wintypes.BOOL),
+        ("hNameMappings", ctypes.c_void_p), ("lpszProgressTitle", wintypes.LPCWSTR),
+    ]
+
+
+_FO_DELETE = 3
+_FOF_SILENT = 0x4
+_FOF_NOCONFIRMATION = 0x10
+_FOF_ALLOWUNDO = 0x40
+_FOF_NOERRORUI = 0x400
+
+
+def recycle(path: Path) -> None:
+    """Move ``path`` to the Recycle Bin, so a deleted screenshot can still be restored."""
+    if sys.platform != "win32":
+        raise RuntimeError("Deleting screenshots needs Windows.")
+    operation = _SHFILEOPSTRUCTW()
+    operation.wFunc = _FO_DELETE
+    operation.pFrom = f"{path}\0"  # the API takes a double-NUL-terminated list
+    operation.fFlags = _FOF_ALLOWUNDO | _FOF_NOCONFIRMATION | _FOF_SILENT | _FOF_NOERRORUI
+    if ctypes.windll.shell32.SHFileOperationW(ctypes.byref(operation)) or operation.fAnyOperationsAborted:
+        raise RuntimeError("Windows could not move the screenshot to the Recycle Bin.")
+
+
+def delete(path: str, remove=recycle) -> None:
+    target = _known(path)
+    remove(target)
+    _SAVED.discard(str(target))
